@@ -1,0 +1,28 @@
+{
+  "character": {
+    "name": "测试角色",
+    "hp": 100,
+    "max_hp": 100,
+    "mp": 50,
+    "max_mp": 100,
+    "realm": "炼气期",
+    "exp": 0,
+    "exp_progress": 0.0,
+    "total_exp": 0,
+    "talent": 3,
+    "pills": 3,
+    "meditation_streak": 3,
+    "total_actions": 8,
+    "alive": true
+  },
+  "game_log_entries": [
+    "欢迎来到极简修仙世界，测试角色！",
+    "你的资质为 3，开始你的修仙之旅。"
+  ],
+  "difficulty": "normal",
+  "is_game_over": false,
+  "meditation_streak": 3,
+  "total_actions": 8,
+  "actions": 8,
+  "version": "2.0.0"
+}

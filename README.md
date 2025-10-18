@@ -169,6 +169,10 @@ python run_tests.py coverage
 4. 提交代码更改
 5. 创建Pull Request
 
+## ☁️ 部署到GitHub
+
+项目支持部署到GitHub，详细部署指南请查看 [GITHUB_DEPLOYMENT_GUIDE.md](GITHUB_DEPLOYMENT_GUIDE.md) 文件。
+
 ## 📝 许可证
 
 本项目采用MIT许可证，详见LICENSE文件。

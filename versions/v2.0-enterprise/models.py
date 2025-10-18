@@ -230,6 +230,7 @@ class CharacterStats:
             "talent": self.talent.base_talent,
             "pills": self.inventory.get_item_count("pill"),
             "meditation_streak": self.meditation_streak,
+            "total_actions": self.total_actions,
             "alive": self.is_alive()
         }
 

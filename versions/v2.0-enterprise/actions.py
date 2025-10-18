@@ -91,6 +91,11 @@ class MeditateAction(Action):
         }
         costs = {"hp": cost.hp, "time": cost.time}
 
+        # 添加等级提升信息
+        if breakthrough:
+            effects["level_up"] = True
+            effects["new_level"] = character.experience.current_realm.value
+
         return ActionResult(True, log_message, effects, costs)
 
 
@@ -147,6 +152,11 @@ class ConsumePillAction(Action):
         }
         costs = {"pills": cost.pills}
 
+        # 添加等级提升信息
+        if breakthrough:
+            effects["level_up"] = True
+            effects["new_level"] = character.experience.current_realm.value
+
         return ActionResult(True, log_message, effects, costs)
 
     def get_failure_message(self, character: CharacterStats) -> str:
@@ -199,6 +209,11 @@ class CultivateAction(Action):
         # 构建返回结果
         effects = {"exp_gain": exp_gain}
         costs = {"mp": cost.mp, "time": cost.time}
+
+        # 添加等级提升信息
+        if breakthrough:
+            effects["level_up"] = True
+            effects["new_level"] = character.experience.current_realm.value
 
         return ActionResult(True, log_message, effects, costs)
 

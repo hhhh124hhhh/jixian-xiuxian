@@ -243,6 +243,8 @@ class AchievementTracker:
         self.event_handler.register_listener(EventType.LEVEL_UP, self._on_level_up)
         self.event_handler.register_listener(EventType.MEDITATION_STREAK, self._on_meditation_streak)
         self.event_handler.register_listener(EventType.CHARACTER_DIED, self._on_character_died)
+        self.event_handler.register_listener(EventType.PILL_OBTAINED, self._on_pill_obtained)
+        self.event_handler.register_listener(EventType.ACTION_EXECUTED, self._on_action_executed)
 
     def _on_level_up(self, event: GameEvent):
         """处理等级提升事件"""
@@ -253,12 +255,38 @@ class AchievementTracker:
     def _on_meditation_streak(self, event: GameEvent):
         """处理连续打坐事件"""
         streak = event.data.get("streak", 0)
+        if streak >= 5:
+            self.unlock_achievement("meditation_beginner", "打坐初学者")
         if streak >= 10:
             self.unlock_achievement("meditation_master", "打坐大师")
 
     def _on_character_died(self, event: GameEvent):
         """处理角色死亡事件"""
         self.unlock_achievement("first_death", "初次死亡")
+
+    def _on_pill_obtained(self, event: GameEvent):
+        """处理获得丹药事件"""
+        amount = event.data.get("amount", 0)
+        if amount >= 1:
+            self.unlock_achievement("first_pill", "获得丹药")
+
+    def _on_action_executed(self, event: GameEvent):
+        """处理动作执行事件"""
+        action = event.data.get("action", "")
+        character_state = event.data.get("character_state", {})
+        total_actions = character_state.get("total_actions", 0)
+
+        # 首次动作成就
+        if total_actions == 1:
+            self.unlock_achievement("first_action", "开始修炼")
+
+        # 动作次数成就
+        if total_actions >= 10:
+            self.unlock_achievement("persistent_cultivator", "坚持修炼")
+
+        # 特定动作成就
+        if action == "修炼" and total_actions >= 5:
+            self.unlock_achievement("cultivation_enthusiast", "修炼爱好者")
 
     def unlock_achievement(self, achievement_id: str, description: str):
         """解锁成就"""

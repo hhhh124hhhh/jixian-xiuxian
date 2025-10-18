@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, List
 from models import CharacterStats, GameLog
 from actions import ActionFactory
 from rules import game_rules, difficulty_settings
+from core.event_handler import event_handler, EventType
 
 
 class GameCore:
@@ -59,6 +60,16 @@ class GameCore:
 
             self.is_game_over = False
 
+            # 分发游戏开始事件
+            event_handler.dispatch_event(
+                EventType.GAME_START,
+                {
+                    "character_name": self.character.name,
+                    "talent": self.character.talent.base_talent,
+                    "difficulty": difficulty
+                }
+            )
+
             return True
 
         except Exception as e:
@@ -103,6 +114,54 @@ class GameCore:
         # 执行动作
         try:
             result = action.execute(self.character, self.game_log)
+
+            # 分发动作执行事件
+            event_handler.dispatch_event(
+                EventType.ACTION_EXECUTED,
+                {
+                    "action": action_name,
+                    "result": {
+                        "success": result.success,
+                        "message": result.message,
+                        "effects": result.effects,
+                        "costs": result.costs
+                    },
+                    "character_state": self.character.get_status_summary()
+                }
+            )
+
+            # 检查是否获得丹药奖励
+            if result.effects.get("pill_bonus", 0) > 0:
+                event_handler.dispatch_event(
+                    EventType.PILL_OBTAINED,
+                    {
+                        "amount": result.effects["pill_bonus"],
+                        "reason": "连续打坐奖励",
+                        "streak": self.character.meditation_streak
+                    }
+                )
+
+            # 检查连续打坐
+            if action_name == "打坐" and self.character.meditation_streak % 5 == 0:
+                event_handler.dispatch_event(
+                    EventType.MEDITATION_STREAK,
+                    {
+                        "streak": self.character.meditation_streak,
+                        "pills_obtained": result.effects.get("pill_bonus", 0)
+                    }
+                )
+
+            # 检查等级提升
+            if result.effects.get("level_up", False):
+                event_handler.dispatch_event(
+                    EventType.LEVEL_UP,
+                    {
+                        "new_level": result.effects["new_level"],
+                        "character_name": self.character.name,
+                        "total_experience": self.character.experience.total_experience,
+                        "action": action_name
+                    }
+                )
 
             # 更新游戏状态
             self._update_game_state()
@@ -149,9 +208,40 @@ class GameCore:
             self.is_game_over = True
             self.game_log.add_entry("修炼失败，游戏结束。")
 
+            # 分发角色死亡事件
+            event_handler.dispatch_event(
+                EventType.CHARACTER_DIED,
+                {
+                    "character_name": self.character.name,
+                    "realm": self.character.experience.current_realm.value,
+                    "total_experience": self.character.experience.total_experience,
+                    "total_actions": self.character.total_actions
+                }
+            )
+
+            # 分发游戏结束事件
+            event_handler.dispatch_event(
+                EventType.GAME_OVER,
+                {
+                    "reason": "character_died",
+                    "character_state": self.character.get_status_summary(),
+                    "victory": False
+                }
+            )
+
         elif self.character.experience.current_realm.value == "飞升":
             self.is_game_over = True
             self.game_log.add_entry("恭喜！你已成功飞升，达成完美结局！")
+
+            # 分发游戏结束事件
+            event_handler.dispatch_event(
+                EventType.GAME_OVER,
+                {
+                    "reason": "ascension",
+                    "character_state": self.character.get_status_summary(),
+                    "victory": True
+                }
+            )
 
     def get_game_state(self) -> Dict[str, Any]:
         """获取当前游戏状态"""
@@ -246,10 +336,6 @@ class GameCore:
             character_data = save_data["character"]
             difficulty = save_data["difficulty"]
 
-            print(f"DEBUG: 加载的角色数据: {character_data}")
-            print(f"DEBUG: total_actions 在保存数据中: {character_data.get('total_actions', '未找到')}")
-            print(f"DEBUG: actions 在保存数据中: {character_data.get('actions', '未找到')}")
-
             self.initialize_game(character_data["name"], difficulty)
 
             # 恢复角色状态
@@ -258,13 +344,11 @@ class GameCore:
                 self.character.mana.current_mp = character_data["mp"]
                 self.character.inventory.add_item("pill", character_data["pills"] - self.character.inventory.get_item_count("pill"))
                 self.character.meditation_streak = character_data["meditation_streak"]
-                # 修复：total_actions字段名问题
+                # 恢复总行动次数
                 total_actions = character_data.get("total_actions", 0)
                 if not total_actions:
                     total_actions = character_data.get("actions", 0)  # 尝试备用字段名
-                print(f"DEBUG: 尝试恢复 total_actions = {total_actions} (类型: {type(total_actions)})")
                 self.character.total_actions = total_actions
-                print(f"DEBUG: 设置后的 total_actions = {self.character.total_actions}")
 
                 # 恢复经验值和境界
                 from models import RealmLevel
