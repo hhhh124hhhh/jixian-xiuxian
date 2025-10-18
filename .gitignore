@@ -1,3 +1,7 @@
 
 # Environment variables
 .env.local
+
+# Configuration files
+CLAUDE.md
+cloudbaserc.json
