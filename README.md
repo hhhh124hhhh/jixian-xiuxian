@@ -12,13 +12,16 @@
 ### 安装依赖
 
 ```bash
-# 安装v2.0企业级版本依赖（推荐）
+# 方法1: 通过requirements.txt安装依赖
+pip install -r requirements.txt
+
+# 方法2: 安装v2.0企业级版本依赖
 pip install pygame pytest
 
-# 或安装v1.0 MVP版本依赖
+# 方法3: 安装v1.0 MVP版本依赖
 pip install pygame
 
-# 或通过setup.py安装（推荐用于开发）
+# 方法4: 通过setup.py安装（推荐用于开发）
 pip install -e .
 ```
 
