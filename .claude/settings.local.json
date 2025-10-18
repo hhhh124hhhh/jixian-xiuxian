@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx:*)",
+      "Bash(uvx mcp-server-fetch:*)",
+      "Bash(pip install:*)",
+      "Bash(/doctor)",
+      "Bash(claude:*)",
+      "Read(//home/hwq/.config/**)",
+      "Read(//home/hwq/**)",
+      "Bash(/mcp)",
+      "Bash(curl:*)",
+      "Bash(sh:*)",
+      "Bash(sudo apt:*)",
+      "Bash(python3:*)",
+      "Bash(~/.local/uv-env/bin/pip:*)",
+      "Bash(pip3 install:*)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Read(//mnt/d/**)",
+      "WebFetch(domain:12factor.ai)",
+      "WebFetch(domain:humanlayer.com)",
+      "WebFetch(domain:12factor.net)",
+      "WebFetch(domain:api.github.com)",
+      "Read(//tmp/**)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(virtualenv:*)",
+      "Bash(source:*)",
+      "Bash(python:*)",
+      "Bash(chmod:*)",
+      "Bash(./start.sh:*)",
+      "Bash(dos2unix:*)",
+      "Bash(timeout:*)",
+      "Read(//mnt/**)",
+      "Bash(tree:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

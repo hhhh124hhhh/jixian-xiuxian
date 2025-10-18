@@ -1,0 +1,29 @@
+{
+  "character": {
+    "name": "测试角色",
+    "hp": 100,
+    "max_hp": 100,
+    "mp": 78,
+    "max_mp": 100,
+    "realm": "炼气期",
+    "exp": 13,
+    "exp_progress": 13.0,
+    "total_exp": 13,
+    "talent": 3,
+    "pills": 0,
+    "meditation_streak": 0,
+    "alive": true
+  },
+  "game_log_entries": [
+    "欢迎来到极简修仙世界，测试角色！",
+    "你的资质为 3，开始你的修仙之旅。",
+    "你进入打坐修炼状态，恢复10点仙力，获得5点经验",
+    "你服下一颗丹药，恢复1点生命和18点仙力，获得8点经验。"
+  ],
+  "difficulty": "normal",
+  "is_game_over": false,
+  "meditation_streak": 0,
+  "total_actions": 5,
+  "actions": 5,
+  "version": "2.0.0"
+}
