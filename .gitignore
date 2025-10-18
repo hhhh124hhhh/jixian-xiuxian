@@ -5,3 +5,30 @@
 # Configuration files
 CLAUDE.md
 cloudbaserc.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+.pytest_cache
+.coverage.*
+.gitignore~
+
+# Distribution / packaging
+.Python
+build/
+sdist/
+egg/
+eggs/
+parts/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
