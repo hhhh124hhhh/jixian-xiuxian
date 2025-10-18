@@ -17,6 +17,9 @@ pip install pygame pytest
 
 # 或安装v1.0 MVP版本依赖
 pip install pygame
+
+# 或通过setup.py安装（推荐用于开发）
+pip install -e .
 ```
 
 ### 运行游戏
