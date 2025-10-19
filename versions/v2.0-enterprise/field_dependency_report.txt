@@ -1,0 +1,50 @@
+================================================================================
+🔬 静态字段依赖分析报告
+================================================================================
+📁 项目路径: /mnt/d/极简修仙/versions/v2.0-enterprise
+📄 分析文件数: 13
+🔤 发现字段数: 132
+📝 总引用数: 442
+
+📊 字段使用频率 TOP 10:
+   success: 32 次
+   message: 31 次
+   effects: 31 次
+   costs: 31 次
+   name: 12 次
+   total_actions: 10 次
+   action: 9 次
+   time: 9 次
+   difficulty: 8 次
+   hp: 8 次
+
+🔗 发现 41 个字段依赖关系:
+   total_actions (application.py) → /mnt/d/极简修仙/versions/v2.0-enterprise/core/game_core.py
+   total_actions (application.py) → /mnt/d/极简修仙/versions/v2.0-enterprise/core/game_core.py
+   total_actions (application.py) → /mnt/d/极简修仙/versions/v2.0-enterprise/core/game_core.py
+   total_actions (models.py) → /mnt/d/极简修仙/versions/v2.0-enterprise/core/game_core.py
+   total_actions (action_registry.py) → /mnt/d/极简修仙/versions/v2.0-enterprise/core/game_core.py
+
+🎮 动作契约一致性分析:
+   后端定义动作: 0 个
+   UI层按钮动作: 0 个
+   快捷键映射动作: 0 个
+
+⚠️  动作契约问题:
+   分析动作契约时出错: cannot import name 'ActionFactory' from 'actions' (/mnt/d/极简修仙/versions/v2.0-enterprise/actions/__init__.py)
+
+🔍 发现 5 处硬编码动作字符串:
+   meditate 在 /mnt/d/极简修仙/versions/v2.0-enterprise/models.py:147
+   cultivate 在 /mnt/d/极简修仙/versions/v2.0-enterprise/models.py:148
+   meditate 在 /mnt/d/极简修仙/versions/v2.0-enterprise/rules.py:56
+   cultivate 在 /mnt/d/极简修仙/versions/v2.0-enterprise/rules.py:57
+   wait 在 /mnt/d/极简修仙/versions/v2.0-enterprise/rules.py:59
+
+⚠️  其他潜在问题:
+   ⚠️  字段 'entry' 被访问但未定义 (使用于: /mnt/d/极简修仙/versions/v2.0-enterprise/ui/interface.py)
+   ⚠️  字段 'current' 被访问但未定义 (使用于: /mnt/d/极简修仙/versions/v2.0-enterprise/ui/layouts.py)
+   ⚠️  字段 'max' 被访问但未定义 (使用于: /mnt/d/极简修仙/versions/v2.0-enterprise/ui/layouts.py)
+   🔍 可能的拼写错误: 'pill' (应为 'pills'?)
+   🔍 可能的拼写错误: 'large' (应为 'realm'?)
+
+================================================================================

@@ -32,14 +32,14 @@ class Action(ABC):
 
     def get_failure_message(self, character: CharacterStats) -> str:
         """获取失败消息"""
-        return f"无法执行{self.name}"
+        return f"无法执行{self.description}"
 
 
 class MeditateAction(Action):
     """打坐动作"""
 
     def __init__(self):
-        super().__init__("打坐", "进入冥想状态，恢复仙力并获得少量经验")
+        super().__init__("meditate", "进入冥想状态，恢复仙力并获得少量经验")
 
     def get_cost(self) -> Cost:
         return Cost(hp=1, time=1)  # 微量消耗生命值
@@ -103,7 +103,7 @@ class ConsumePillAction(Action):
     """服用丹药动作"""
 
     def __init__(self):
-        super().__init__("吃丹药", "服用丹药快速恢复生命力和仙力")
+        super().__init__("consume_pill", "服用丹药快速恢复生命力和仙力")
 
     def get_cost(self) -> Cost:
         return Cost(pills=1)
@@ -171,7 +171,7 @@ class CultivateAction(Action):
     """修炼功法动作"""
 
     def __init__(self):
-        super().__init__("修炼", "运转心法，大量提升修为")
+        super().__init__("cultivate", "运转心法，大量提升修为")
 
     def get_cost(self) -> Cost:
         return Cost(mp=20, time=2)  # 消耗仙力和时间
@@ -229,7 +229,7 @@ class WaitAction(Action):
     """等待动作"""
 
     def __init__(self):
-        super().__init__("等待", "静心养神，缓慢恢复状态")
+        super().__init__("wait", "静心养神，缓慢恢复状态")
 
     def get_cost(self) -> Cost:
         return Cost(hp=1, time=1)  # 等待也会消耗微量生命

@@ -284,26 +284,26 @@ class TestActionFactory:
         assert len(actions) == 4
 
         action_names = [action.name for action in actions]
-        assert "打坐" in action_names
-        assert "吃丹药" in action_names
-        assert "修炼" in action_names
-        assert "等待" in action_names
+        assert "meditate" in action_names
+        assert "consume_pill" in action_names
+        assert "cultivate" in action_names
+        assert "wait" in action_names
 
     def test_get_action_by_name(self):
         """测试根据名称获取动作"""
-        meditate = ActionFactory.get_action_by_name("打坐")
+        meditate = ActionFactory.get_action_by_name("meditate")
         assert meditate is not None
         assert isinstance(meditate, MeditateAction)
 
-        consume_pill = ActionFactory.get_action_by_name("吃丹药")
+        consume_pill = ActionFactory.get_action_by_name("consume_pill")
         assert consume_pill is not None
         assert isinstance(consume_pill, ConsumePillAction)
 
-        cultivate = ActionFactory.get_action_by_name("修炼")
+        cultivate = ActionFactory.get_action_by_name("cultivate")
         assert cultivate is not None
         assert isinstance(cultivate, CultivateAction)
 
-        wait = ActionFactory.get_action_by_name("等待")
+        wait = ActionFactory.get_action_by_name("wait")
         assert wait is not None
         assert isinstance(wait, WaitAction)
 

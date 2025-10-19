@@ -10,17 +10,32 @@ from dataclasses import dataclass
 
 class EventType(Enum):
     """事件类型枚举"""
+    # 游戏生命周期事件
     GAME_START = "game_start"
     GAME_OVER = "game_over"
+    RESET_GAME = "reset_game"
+
+    # 动作相关事件
     ACTION_EXECUTED = "action_executed"
+
+    # 角色相关事件
     LEVEL_UP = "level_up"
     CHARACTER_DIED = "character_died"
+
+    # 游戏进度事件
     PILL_OBTAINED = "pill_obtained"
     MEDITATION_STREAK = "meditation_streak"
-    ERROR_OCCURRED = "error_occurred"
+
+    # 数据管理事件
     SAVE_GAME = "save_game"
     LOAD_GAME = "load_game"
-    RESET_GAME = "reset_game"
+
+    # 系统功能事件
+    RESTART_REQUESTED = "restart_requested"
+    SETTINGS_REQUESTED = "settings_requested"
+
+    # 错误和状态事件
+    ERROR_OCCURRED = "error_occurred"
 
 
 @dataclass

@@ -11,6 +11,7 @@ from core.game_core import GameCore
 from core.event_handler import event_handler, EventType, GameEventLogger, AchievementTracker, GameEvent
 from ui.layouts import default_layout
 from ui.themes import theme_manager
+from actions.system_actions import SystemActionFactory
 
 
 class GameApplication:
@@ -42,11 +43,13 @@ class GameApplication:
         if hasattr(self.ui, 'on_action_selected'):
             self.ui.on_action_selected = self._on_action_selected
 
+        # 系统动作现在通过统一的动作处理机制处理，不再需要单独的回调
+        # 但保留兼容性以防UI层仍调用这些方法
         if hasattr(self.ui, 'on_restart_requested'):
-            self.ui.on_restart_requested = self._on_restart_requested
+            self.ui.on_restart_requested = lambda: self._on_action_selected("restart")
 
         if hasattr(self.ui, 'on_settings_requested'):
-            self.ui.on_settings_requested = self._on_settings_requested
+            self.ui.on_settings_requested = lambda: self._on_action_selected("settings")
 
     def _setup_event_listeners(self):
         """设置事件监听器"""
@@ -61,6 +64,12 @@ class GameApplication:
         event_handler.register_listener(EventType.GAME_OVER, self._on_game_over)
         event_handler.register_listener(EventType.ACTION_EXECUTED, self._on_action_executed)
         event_handler.register_listener(EventType.LEVEL_UP, self._on_level_up)
+
+        # 注册系统动作相关事件监听器
+        event_handler.register_listener(EventType.RESTART_REQUESTED, self._on_restart_requested_event)
+        event_handler.register_listener(EventType.SETTINGS_REQUESTED, self._on_settings_requested_event)
+        event_handler.register_listener(EventType.SAVE_GAME, self._on_save_game_event)
+        event_handler.register_listener(EventType.LOAD_GAME, self._on_load_game_event)
 
     def initialize(self, character_name: str = None, difficulty: str = "normal") -> bool:
         """
@@ -162,33 +171,54 @@ class GameApplication:
             if action_name:
                 self._execute_action(action_name)
 
-        elif event.event_type == "restart":
-            self._restart_game()
-
-        elif event.event_type == "settings":
-            self._show_settings()
+        # 移除restart和settings的独立处理，现在都通过action事件统一处理
 
     def _execute_action(self, action_name: str):
-        """执行游戏动作"""
-        if not self.game_core.character or self.game_core.is_game_over:
-            return
+        """统一执行游戏动作和系统动作"""
+        result = None
 
-        # 执行动作
-        result = self.game_core.execute_action(action_name)
+        # 检查是否为系统动作
+        if SystemActionFactory.is_system_action(action_name):
+            # 执行系统动作
+            system_action = SystemActionFactory.get_system_action_by_name(action_name)
+            if system_action:
+                result = system_action.execute_system_action(self)
+            else:
+                result = {
+                    "success": False,
+                    "message": f"系统动作 {action_name} 未找到",
+                    "effects": {},
+                    "costs": {}
+                }
+        else:
+            # 执行游戏动作
+            if not self.game_core.character or self.game_core.is_game_over:
+                result = {
+                    "success": False,
+                    "message": "游戏未开始或已结束",
+                    "effects": {},
+                    "costs": {}
+                }
+            else:
+                result = self.game_core.execute_action(action_name)
 
-        # 更新统计
-        if result["success"]:
+        # 更新统计（只有成功的动作才计数）
+        if result and result.get("success"):
             self.total_actions += 1
 
         # 分发动作执行事件
-        event_handler.dispatch_event(
-            EventType.ACTION_EXECUTED,
-            {
-                "action": action_name,
-                "result": result,
-                "total_actions": self.total_actions
-            }
-        )
+        if result:
+            event_handler.dispatch_event(
+                EventType.ACTION_EXECUTED,
+                {
+                    "action": action_name,
+                    "result": result,
+                    "total_actions": self.total_actions,
+                    "action_type": "system" if SystemActionFactory.is_system_action(action_name) else "game"
+                }
+            )
+
+        return result
 
     def _update_game_state(self):
         """更新游戏状态"""
@@ -247,6 +277,42 @@ class GameApplication:
 
         theme_manager.set_theme(next_theme)
         self.ui.show_message("设置", f"主题已切换为: {next_theme}")
+
+    def _save_game(self, slot: int = 1) -> bool:
+        """保存游戏到指定槽位"""
+        try:
+            # 这里应该实现实际的保存逻辑
+            # 目前作为示例，只分发事件
+            event_handler.dispatch_event(
+                EventType.SAVE_GAME,
+                {
+                    "slot": slot,
+                    "character_name": self.game_core.character.name if self.game_core.character else None,
+                    "difficulty": self.game_core.difficulty,
+                    "timestamp": time.time()
+                }
+            )
+            return True
+        except Exception as e:
+            print(f"保存游戏失败: {e}")
+            return False
+
+    def _load_game(self, slot: int = 1) -> bool:
+        """从指定槽位加载游戏"""
+        try:
+            # 这里应该实现实际的加载逻辑
+            # 目前作为示例，只分发事件
+            event_handler.dispatch_event(
+                EventType.LOAD_GAME,
+                {
+                    "slot": slot,
+                    "timestamp": time.time()
+                }
+            )
+            return True
+        except Exception as e:
+            print(f"加载游戏失败: {e}")
+            return False
 
     def _handle_game_over(self):
         """处理游戏结束"""
@@ -374,6 +440,27 @@ class GameApplication:
         """等级提升事件处理"""
         new_level = event.data.get("new_level", "未知")
         print(f"🎉 突破境界: {new_level}")
+
+    # 系统动作事件处理器
+    def _on_restart_requested_event(self, event: GameEvent):
+        """重启请求事件处理"""
+        print("收到重启请求事件")
+        # 这个事件现在由RestartAction自己处理，这里只做日志记录
+
+    def _on_settings_requested_event(self, event: GameEvent):
+        """设置请求事件处理"""
+        print("收到设置请求事件")
+        # 这个事件现在由SettingsAction自己处理，这里只做日志记录
+
+    def _on_save_game_event(self, event: GameEvent):
+        """保存游戏事件处理"""
+        slot = event.data.get("slot", 1)
+        print(f"保存游戏到槽位 {slot}")
+
+    def _on_load_game_event(self, event: GameEvent):
+        """加载游戏事件处理"""
+        slot = event.data.get("slot", 1)
+        print(f"从槽位 {slot} 加载游戏")
 
     def get_application_info(self) -> Dict[str, Any]:
         """获取应用程序信息"""

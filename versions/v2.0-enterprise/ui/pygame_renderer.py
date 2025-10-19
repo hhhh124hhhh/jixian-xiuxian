@@ -21,6 +21,7 @@ class PygameInputHandler(InputHandler):
             pygame.K_3: "cultivate",
             pygame.K_4: "wait",
             pygame.K_r: "restart",
+            pygame.K_s: "settings",  # 添加设置快捷键
             pygame.K_ESCAPE: "quit"
         }
 
@@ -282,7 +283,7 @@ class PygameGameInterface(GameInterface):
             bg_color=theme.MP_BACKGROUND
         )
 
-        # 创建操作按钮
+        # 创建操作按钮（游戏动作）
         for button_config in self.layout.ACTION_BUTTONS:
             button = Button(
                 (button_config["rect"].x, button_config["rect"].y),
@@ -293,7 +294,7 @@ class PygameGameInterface(GameInterface):
             button.on_click = self._on_button_click
             self.buttons.append(button)
 
-        # 创建状态栏按钮
+        # 创建状态栏按钮（系统动作）
         for button_config in self.layout.STATUS_BUTTONS:
             button = Button(
                 (button_config["rect"].x, button_config["rect"].y),
@@ -306,13 +307,15 @@ class PygameGameInterface(GameInterface):
 
     def _on_button_click(self, action: str):
         """按钮点击回调"""
-        if action == "restart":
-            if self.on_restart_requested:
+        # 检查是否为系统动作
+        if self.renderer.is_system_action(action):
+            if action == "restart" and self.on_restart_requested:
                 self.on_restart_requested()
-        elif action == "settings":
-            if self.on_settings_requested:
+            elif action == "settings" and self.on_settings_requested:
                 self.on_settings_requested()
-        elif self.on_action_selected:
+            elif self.on_action_selected:  # 统一处理所有系统动作
+                self.on_action_selected(action)
+        elif self.on_action_selected:  # 游戏动作
             self.on_action_selected(action)
 
     def render(self, game_state: Dict[str, Any]) -> None:
@@ -367,7 +370,8 @@ class PygameGameInterface(GameInterface):
             name=char_info.name,
             talent=char_info.talent,
             realm=char_info.realm,
-            exp=self.renderer.format_exp_display(character)
+            exp=char_info.exp,
+            exp_threshold=char_info.exp_threshold
         )
         name_surface = font.render(name_line, True, theme.TEXT_PRIMARY)
         self.screen.blit(name_surface, info_config["name_line"]["pos"])
@@ -411,13 +415,27 @@ class PygameGameInterface(GameInterface):
         character = game_state.get("character")
         actions = game_state.get("actions", [])
 
+        # 更新游戏动作按钮状态
         if character and actions:
-            # 更新按钮状态
-            button_states = self.renderer.format_action_buttons(character, actions)
+            # 只更新游戏动作按钮（前4个按钮）
+            game_button_states = self.renderer.format_action_buttons(character, actions)
 
-            for i, button in enumerate(self.buttons):
-                if i < len(button_states):
-                    button_state = button_states[i]
+            # 分离游戏动作按钮和系统动作按钮
+            game_buttons = self.buttons[:len(self.layout.ACTION_BUTTONS)]
+            system_buttons = self.buttons[len(self.layout.ACTION_BUTTONS):]
+
+            # 更新游戏动作按钮状态
+            for i, button in enumerate(game_buttons):
+                if i < len(game_button_states):
+                    button_state = game_button_states[i]
+                    button.enabled = button_state.enabled
+                    button.visible = button_state.visible
+
+            # 更新系统动作按钮状态
+            system_button_states = self.renderer.format_system_action_buttons()
+            for i, button in enumerate(system_buttons):
+                if i < len(system_button_states):
+                    button_state = system_button_states[i]
                     button.enabled = button_state.enabled
                     button.visible = button_state.visible
 

@@ -6,6 +6,15 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 
+# 导入系统动作工厂
+from actions.system_actions import SystemActionFactory
+
+
+class ButtonType:
+    """按钮类型常量"""
+    GAME_ACTION = "game_action"    # 游戏动作按钮
+    SYSTEM_ACTION = "system_action"  # 系统动作按钮
+
 
 @dataclass
 class UIEvent:
@@ -20,6 +29,7 @@ class ButtonState:
     """按钮状态"""
     name: str
     action: str
+    button_type: str = ButtonType.GAME_ACTION  # 按钮类型
     enabled: bool = True
     visible: bool = True
     tooltip: str = ""
@@ -135,12 +145,26 @@ class GameStateRenderer:
         """
         status = character.get_status_summary()
 
+        # 获取当前境界的经验阈值
+        from models import RealmLevel
+        from rules import game_rules
+        realm_map = {
+            "炼气期": RealmLevel.QI_REFINING,
+            "筑基期": RealmLevel.FOUNDATION,
+            "结丹期": RealmLevel.CORE_FORMATION,
+            "元婴期": RealmLevel.NASCENT_SOUL,
+            "化神期": RealmLevel.SPIRITUAL_TRANSFORMATION,
+            "飞升": RealmLevel.ASCENSION
+        }
+        current_realm = realm_map.get(status["realm"], RealmLevel.QI_REFINING)
+        exp_threshold = game_rules.get_realm_threshold(current_realm)
+
         return CharacterDisplayInfo(
             name=status["name"],
             talent=status["talent"],
             realm=status["realm"],
             exp=status["exp"],
-            exp_threshold=int(status["exp_progress"]),  # 这里需要修正
+            exp_threshold=exp_threshold,
             hp=status["hp"],
             max_hp=status["max_hp"],
             mp=status["mp"],
@@ -169,6 +193,7 @@ class GameStateRenderer:
             button = ButtonState(
                 name=action.name,
                 action=action.__class__.__name__.lower().replace("action", ""),
+                button_type=ButtonType.GAME_ACTION,
                 enabled=can_execute and character.is_alive(),
                 visible=True,
                 tooltip=action.description if can_execute else "条件不足"
@@ -176,6 +201,48 @@ class GameStateRenderer:
             buttons.append(button)
 
         return buttons
+
+    def format_system_action_buttons(self) -> List[ButtonState]:
+        """
+        格式化系统动作按钮
+        Returns:
+            List[ButtonState]: 格式化后的系统按钮状态列表
+        """
+        buttons = []
+        system_actions = SystemActionFactory.get_all_system_actions()
+
+        for action in system_actions:
+            # 获取系统动作的中文名称用于显示
+            display_names = {
+                "restart": "重新开始",
+                "settings": "设置",
+                "save_game": "保存游戏",
+                "load_game": "加载游戏"
+            }
+
+            display_name = display_names.get(action.name, action.name)
+
+            button = ButtonState(
+                name=display_name,
+                action=action.name,
+                button_type=ButtonType.SYSTEM_ACTION,
+                enabled=True,  # 系统动作通常总是可用
+                visible=True,
+                tooltip=action.description
+            )
+            buttons.append(button)
+
+        return buttons
+
+    def is_system_action(self, action_name: str) -> bool:
+        """
+        检查是否为系统动作
+        Args:
+            action_name: 动作名称
+        Returns:
+            bool: 是否为系统动作
+        """
+        return SystemActionFactory.is_system_action(action_name)
 
     def format_game_log(self, log_entries: List[str], max_entries: int = 8) -> List[str]:
         """
