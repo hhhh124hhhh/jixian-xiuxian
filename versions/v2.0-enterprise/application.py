@@ -64,6 +64,8 @@ class GameApplication:
         event_handler.register_listener(EventType.GAME_OVER, self._on_game_over)
         event_handler.register_listener(EventType.ACTION_EXECUTED, self._on_action_executed)
         event_handler.register_listener(EventType.LEVEL_UP, self._on_level_up)
+        event_handler.register_listener(EventType.QI_TIDE_TRIGGERED, self._on_tide_triggered)
+        event_handler.register_listener(EventType.QI_TIDE_CONSUMED, self._on_tide_consumed)
 
         # 注册系统动作相关事件监听器
         event_handler.register_listener(EventType.RESTART_REQUESTED, self._on_restart_requested_event)
@@ -440,6 +442,25 @@ class GameApplication:
         """等级提升事件处理"""
         new_level = event.data.get("new_level", "未知")
         print(f"🎉 突破境界: {new_level}")
+
+    def _on_tide_triggered(self, event: GameEvent):
+        """灵气潮汐触发事件处理"""
+        effect = event.data.get("effect", {})
+        label = effect.get("label", "未知潮汐")
+        tone = effect.get("tone", "buff")
+        self.ui.show_tide_triggered(effect)
+        self.game_core.game_log.add_entry(f"灵气潮汐触发：{label}")
+        print(f"灵气潮汐触发：{label}（{tone}）")
+
+    def _on_tide_consumed(self, event: GameEvent):
+        """灵气潮汐消耗事件处理"""
+        label = event.data.get("label", "未知潮汐")
+        tone = event.data.get("tone", "buff")
+        before = event.data.get("before", 0)
+        after = event.data.get("after", 0)
+        self.ui.show_tide_consumed(label, tone, before, after)
+        self.game_core.game_log.add_entry(f"潮汐生效：{label}（{before} → {after}）")
+        print(f"潮汐生效：{label}（{before} → {after}）")
 
     # 系统动作事件处理器
     def _on_restart_requested_event(self, event: GameEvent):

@@ -371,6 +371,17 @@ class GameSaveManager:
             if hasattr(app_context.game_core, 'is_game_over'):
                 game_core_data["is_game_over"] = app_context.game_core.is_game_over
 
+            # 灵气潮汐状态
+            tide_system = getattr(app_context.game_core, 'tide_system', None)
+            if tide_system is not None and hasattr(tide_system, 'action_count'):
+                game_core_data["tide_action_count"] = tide_system.action_count
+            tide_system = getattr(app_context.game_core, 'tide_system', None)
+            if tide_system is not None and hasattr(tide_system, 'pending'):
+                game_core_data["pending_tide"] = tide_system.pending
+            tide_system = getattr(app_context.game_core, 'tide_system', None)
+            if tide_system is not None and hasattr(tide_system, 'total_triggered'):
+                game_core_data["tide_total_triggered"] = tide_system.total_triggered
+
             save_data["game_core"] = game_core_data
 
         # 应用层统计
@@ -641,6 +652,18 @@ class LoadGameAction(SystemAction):
                         "effects": {},
                         "costs": {"time": 2}
                     }
+
+                # 恢复灵气潮汐状态（缺字段时保持新开局默认值）
+                if isinstance(game_core_data, dict):
+                    tide_system = getattr(app_context.game_core, 'tide_system', None)
+                    if tide_system is not None and "tide_action_count" in game_core_data:
+                        tide_system.action_count = int(game_core_data["tide_action_count"])
+                    tide_system = getattr(app_context.game_core, 'tide_system', None)
+                    if tide_system is not None and "pending_tide" in game_core_data:
+                        tide_system.pending = game_core_data["pending_tide"]
+                    tide_system = getattr(app_context.game_core, 'tide_system', None)
+                    if tide_system is not None and "tide_total_triggered" in game_core_data:
+                        tide_system.total_triggered = int(game_core_data["tide_total_triggered"])
 
                 # 恢复游戏状态
                 if "difficulty" in game_core_data:

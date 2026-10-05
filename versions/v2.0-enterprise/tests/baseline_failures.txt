@@ -1,0 +1,14 @@
+tests/unit/test_game_core.py::TestGameCore::test_game_over_detection
+tests/unit/test_game_core.py::TestGameCore::test_get_available_actions
+tests/unit/test_game_core.py::TestGameCore::test_save_and_load_not_implemented
+tests/unit/test_game_core.py::TestGameStateManager::test_clear_history
+tests/unit/test_game_core.py::TestGameStateManager::test_get_current_state
+tests/unit/test_game_core.py::TestGameStateManager::test_get_previous_state
+tests/unit/test_game_core.py::TestGameStateManager::test_history_size_limit
+tests/unit/test_game_core.py::TestGameStateManager::test_initialization
+tests/unit/test_game_core.py::TestGameStateManager::test_rollback_state
+tests/unit/test_game_core.py::TestGameStateManager::test_update_state
+tests/unit/test_models.py::TestExperienceComponent::test_multiple_breakthroughs
+tests/unit/test_rules.py::TestGameRule::test_calculate_talent_bonus
+tests/unit/test_rules.py::TestGameRule::test_can_breakthrough
+tests/unit/test_rules.py::TestRuleEdgeCases::test_empty_character_stats

@@ -25,6 +25,8 @@ class EventType(Enum):
     # 游戏进度事件
     PILL_OBTAINED = "pill_obtained"
     MEDITATION_STREAK = "meditation_streak"
+    QI_TIDE_TRIGGERED = "qi_tide_triggered"
+    QI_TIDE_CONSUMED = "qi_tide_consumed"
 
     # 数据管理事件
     SAVE_GAME = "save_game"
@@ -112,7 +114,7 @@ class EventHandler:
 
     def unregister_listener(self, event_type: EventType, listener_id: str) -> bool:
         """
-        取消注册事件监听器
+        取消注册监听器
         Args:
             event_type: 事件类型
             listener_id: 监听器ID
@@ -260,6 +262,7 @@ class AchievementTracker:
         self.event_handler.register_listener(EventType.CHARACTER_DIED, self._on_character_died)
         self.event_handler.register_listener(EventType.PILL_OBTAINED, self._on_pill_obtained)
         self.event_handler.register_listener(EventType.ACTION_EXECUTED, self._on_action_executed)
+        self.event_handler.register_listener(EventType.QI_TIDE_TRIGGERED, self._on_tide_triggered)
 
     def _on_level_up(self, event: GameEvent):
         """处理等级提升事件"""
@@ -302,6 +305,14 @@ class AchievementTracker:
         # 特定动作成就
         if action == "cultivate" and total_actions >= 5:
             self.unlock_achievement("cultivation_enthusiast", "修炼爱好者")
+
+    def _on_tide_triggered(self, event: GameEvent):
+        """处理灵气潮汐触发事件"""
+        total = event.data["total"]
+        if total >= 1:
+            self.unlock_achievement("tide_first", "初感潮汐")
+        if total >= 10:
+            self.unlock_achievement("tide_veteran", "潮汐老手")
 
     def unlock_achievement(self, achievement_id: str, description: str):
         """解锁成就"""

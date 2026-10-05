@@ -81,6 +81,18 @@ class Layout:
             self.STATUS_HEIGHT
         )
 
+    @property
+    def TIDE_EFFECT_RECT(self) -> pygame.Rect:
+        """灵气潮汐待生效效果区域（状态栏右侧）"""
+        status = self.STATUS_RECT
+        width = 280
+        return pygame.Rect(
+            status.right - width,
+            status.y + 4,
+            width - 8,
+            status.height - 8
+        )
+
     # 按钮配置
     @property
     def ACTION_BUTTONS(self) -> list:
