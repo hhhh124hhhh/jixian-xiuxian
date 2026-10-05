@@ -346,7 +346,7 @@ class GameSaveManager:
     def _generate_save_data(self, app_context) -> Dict[str, Any]:
         """生成存档数据"""
         save_data = {
-            "version": "2.0",
+            "version": "2.0.0",
             "timestamp": time.time(),
             "save_time": datetime.now().isoformat(),
         }
@@ -427,7 +427,7 @@ class GameSaveManager:
                 save_data = json.load(f)
 
             # 验证存档版本
-            if save_data.get("version") != "2.0":
+            if save_data.get("version") != "2.0.0":
                 return {
                     "success": False,
                     "message": f"存档版本不兼容 (版本: {save_data.get('version', 'unknown')})",
@@ -589,23 +589,64 @@ class LoadGameAction(SystemAction):
                 save_data = load_result["save_data"]
 
                 # 恢复游戏核心数据
-                if "game_core" in save_data and hasattr(app_context, 'game_core'):
-                    game_core_data = save_data["game_core"]
+                if "game_core" not in save_data or not hasattr(app_context, 'game_core'):
+                    raise ValueError("存档中缺少游戏核心数据")
 
-                    # 恢复角色数据 (这里需要根据实际的游戏核心实现来调整)
-                    if "character" in game_core_data and game_core_data["character"]:
-                        try:
-                            # 这里应该有实际的角色数据恢复逻辑
-                            # 由于不知道具体的实现，我们只是分发事件
-                            pass
-                        except Exception as e:
-                            print(f"恢复角色数据失败: {e}")
+                game_core_data = save_data["game_core"]
+                character_data = game_core_data.get("character") if isinstance(game_core_data, dict) else None
 
-                    # 恢复游戏状态
-                    if "difficulty" in game_core_data:
-                        app_context.game_core.difficulty = game_core_data["difficulty"]
-                    if "is_game_over" in game_core_data:
-                        app_context.game_core.is_game_over = game_core_data["is_game_over"]
+                # 恢复角色数据
+                try:
+                    if not character_data:
+                        raise ValueError("存档中缺少角色数据")
+
+                    character = app_context.game_core.character
+                    if character is None:
+                        raise ValueError("当前游戏核心中没有可恢复的角色")
+
+                    # 恢复生命值和法力值
+                    character.health.current_hp = character_data["hp"]
+                    character.mana.current_mp = character_data["mp"]
+
+                    # 恢复修炼连击次数和总行动次数
+                    character.meditation_streak = character_data["meditation_streak"]
+                    character.total_actions = character_data["total_actions"]
+
+                    # 丹药只保存了数量，按存档数量与当前数量的差值补回
+                    inventory = getattr(app_context.game_core, "inventory", None)
+                    if inventory is None:
+                        inventory = getattr(character, "inventory", None)
+                    if not hasattr(inventory, "get_item_count") or not hasattr(inventory, "add_item"):
+                        raise ValueError("背包接口不可用，无法恢复丹药数量")
+
+                    saved_pills = int(character_data["pills"])
+                    current_pills = int(inventory.get_item_count("pill"))
+                    pill_difference = saved_pills - current_pills
+                    if pill_difference != 0:
+                        add_result = inventory.add_item("pill", pill_difference)
+                        if add_result is False:
+                            raise RuntimeError("丹药数量恢复失败")
+
+                    # 境界、天赋和生命/法力上限依赖角色成长规则，暂不直接覆盖
+                except Exception as e:
+                    error_message = f"恢复角色数据失败: {str(e)}"
+                    self._log_action("load_game", False, error_message, {
+                        "slot": self.slot,
+                        "save_file": load_result["save_file"],
+                        "error": str(e)
+                    })
+                    return {
+                        "success": False,
+                        "message": error_message,
+                        "effects": {},
+                        "costs": {"time": 2}
+                    }
+
+                # 恢复游戏状态
+                if "difficulty" in game_core_data:
+                    app_context.game_core.difficulty = game_core_data["difficulty"]
+                if "is_game_over" in game_core_data:
+                    app_context.game_core.is_game_over = game_core_data["is_game_over"]
 
                 # 恢复应用层统计
                 if "application" in save_data:

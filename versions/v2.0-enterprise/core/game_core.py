@@ -142,7 +142,7 @@ class GameCore:
                 )
 
             # 检查连续打坐
-            if action_name == "打坐" and self.character.meditation_streak % 5 == 0:
+            if action_name == "meditate" and self.character.meditation_streak % 5 == 0:
                 event_handler.dispatch_event(
                     EventType.MEDITATION_STREAK,
                     {
