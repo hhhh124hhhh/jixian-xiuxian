@@ -550,10 +550,198 @@ class PygameGameInterface(GameInterface):
         return "无名修士"
 
     def show_confirmation(self, title: str, message: str) -> bool:
-        """显示确认对话框"""
-        # 简单实现：总是返回True
-        print(f"[确认] {title}: {message}")
-        return True
+        """显示是/否确认对话框并等待用户选择。"""
+        if self.screen is None:
+            return False
+
+        theme = theme_manager.get_theme()
+        title_font = font_manager.get_font("title")
+        message_font = font_manager.get_font("normal")
+        button_font = font_manager.get_font("normal")
+
+        screen_width, screen_height = self.screen.get_size()
+        margin = 20
+        dialog_width = max(1, min(520, screen_width - 2 * margin))
+        padding = min(24, max(8, dialog_width // 10))
+        content_width = max(1, dialog_width - 2 * padding)
+        button_gap = 20
+        button_width = max(
+            1,
+            min(120, (dialog_width - 2 * padding - button_gap) // 2),
+        )
+        button_height = 40
+
+        def wrap_text(text: str, font):
+            lines = []
+            for paragraph in str(text).splitlines() or [""]:
+                current = ""
+                for char in paragraph:
+                    candidate = current + char
+                    if current and font.size(candidate)[0] > content_width:
+                        lines.append(current)
+                        current = char
+                    else:
+                        current = candidate
+                lines.append(current)
+            return lines
+
+        title_lines = wrap_text(title, title_font)
+        message_lines = wrap_text(message, message_font)
+        title_line_height = title_font.get_linesize()
+        message_line_height = message_font.get_linesize()
+        title_height = len(title_lines) * title_line_height
+
+        desired_height = (
+            padding * 2
+            + title_height
+            + 12
+            + len(message_lines) * message_line_height
+            + 20
+            + button_height
+        )
+        available_height = max(1, screen_height - 2 * margin)
+        dialog_height = min(max(190, desired_height), available_height)
+
+        dialog_rect = pygame.Rect(0, 0, dialog_width, dialog_height)
+        dialog_rect.center = (screen_width // 2, screen_height // 2)
+
+        button_y = dialog_rect.bottom - padding - button_height
+        buttons_left = dialog_rect.centerx - (button_width * 2 + button_gap) // 2
+        yes_rect = pygame.Rect(buttons_left, button_y, button_width, button_height)
+        no_rect = pygame.Rect(
+            buttons_left + button_width + button_gap,
+            button_y,
+            button_width,
+            button_height,
+        )
+
+        title_top = dialog_rect.top + padding
+        message_top = title_top + title_height + 12
+        max_message_lines = max(
+            0, (button_y - message_top - 8) // message_line_height
+        )
+        visible_message_lines = message_lines[:max_message_lines]
+        if len(message_lines) > max_message_lines and visible_message_lines:
+            last_line = visible_message_lines[-1]
+            while (
+                last_line
+                and message_font.size(last_line + "...")[0] > content_width
+            ):
+                last_line = last_line[:-1]
+            visible_message_lines[-1] = last_line + "..."
+
+        panel_color = getattr(theme, "PANEL_BACKGROUND", (40, 40, 40))
+        border_color = getattr(theme, "BORDER", (180, 180, 180))
+        text_primary = getattr(theme, "TEXT_PRIMARY", (255, 255, 255))
+        text_secondary = getattr(theme, "TEXT_SECONDARY", (220, 220, 220))
+        button_text_color = getattr(theme, "BUTTON_TEXT", (255, 255, 255))
+        yes_color = getattr(theme, "BUTTON_PRIMARY", (0, 123, 255))
+        no_color = getattr(theme, "BUTTON_SECONDARY", (105, 105, 105))
+        yes_hover_color = tuple(
+            min(255, int(channel) + 30) for channel in yes_color[:3]
+        )
+        no_hover_color = tuple(
+            min(255, int(channel) + 30) for channel in no_color[:3]
+        )
+
+        overlay = pygame.Surface(
+            (screen_width, screen_height),
+            pygame.SRCALPHA,
+        )
+        overlay.fill((0, 0, 0, 180))
+
+        def draw_dialog(yes_hovered: bool, no_hovered: bool) -> None:
+            self.screen.blit(overlay, (0, 0))
+            pygame.draw.rect(self.screen, panel_color, dialog_rect)
+            pygame.draw.rect(self.screen, border_color, dialog_rect, 2)
+
+            current_y = title_top
+            for line in title_lines:
+                title_surface = title_font.render(line, True, text_primary)
+                title_rect = title_surface.get_rect(
+                    centerx=dialog_rect.centerx,
+                    top=current_y,
+                )
+                self.screen.blit(title_surface, title_rect)
+                current_y += title_line_height
+
+            current_y = message_top
+            for line in visible_message_lines:
+                message_surface = message_font.render(line, True, text_secondary)
+                self.screen.blit(
+                    message_surface,
+                    (dialog_rect.left + padding, current_y),
+                )
+                current_y += message_line_height
+
+            buttons = (
+                (yes_rect, "是", yes_color, yes_hover_color, yes_hovered),
+                (no_rect, "否", no_color, no_hover_color, no_hovered),
+            )
+            for button_rect, label, normal_color, hover_color, hovered in buttons:
+                pygame.draw.rect(
+                    self.screen,
+                    hover_color if hovered else normal_color,
+                    button_rect,
+                )
+                pygame.draw.rect(
+                    self.screen,
+                    border_color,
+                    button_rect,
+                    2,
+                )
+                label_surface = button_font.render(
+                    label,
+                    True,
+                    button_text_color,
+                )
+                self.screen.blit(
+                    label_surface,
+                    label_surface.get_rect(center=button_rect.center),
+                )
+
+            pygame.display.flip()
+
+        hover_yes = False
+        hover_no = False
+        draw_dialog(hover_yes, hover_no)
+
+        keypad_enter = getattr(pygame, "K_KP_ENTER", pygame.K_RETURN)
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    return False
+
+                elif event.type == pygame.KEYDOWN:
+                    key = event.key
+                    typed = (getattr(event, "unicode", "") or "").lower()
+
+                    if (
+                        key in (pygame.K_y, pygame.K_RETURN, keypad_enter)
+                        or typed == "y"
+                    ):
+                        return True
+
+                    if key in (pygame.K_n, pygame.K_ESCAPE) or typed == "n":
+                        return False
+
+                elif event.type == pygame.MOUSEMOTION:
+                    hover_yes = yes_rect.collidepoint(event.pos)
+                    hover_no = no_rect.collidepoint(event.pos)
+
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if getattr(event, "button", 1) != 1:
+                        continue
+
+                    if yes_rect.collidepoint(event.pos):
+                        return True
+                    if no_rect.collidepoint(event.pos):
+                        return False
+
+            draw_dialog(hover_yes, hover_no)
+            pygame.time.wait(16)
 
     def update_display(self) -> None:
         """更新显示"""

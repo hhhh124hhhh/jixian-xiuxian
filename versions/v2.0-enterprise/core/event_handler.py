@@ -300,7 +300,7 @@ class AchievementTracker:
             self.unlock_achievement("persistent_cultivator", "坚持修炼")
 
         # 特定动作成就
-        if action == "修炼" and total_actions >= 5:
+        if action == "cultivate" and total_actions >= 5:
             self.unlock_achievement("cultivation_enthusiast", "修炼爱好者")
 
     def unlock_achievement(self, achievement_id: str, description: str):
