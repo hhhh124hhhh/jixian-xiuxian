@@ -439,6 +439,16 @@ class PygameGameInterface(GameInterface):
         if not character:
             return
 
+        backdrop_rect = self.layout.CHARACTER_INFO_BACKDROP_RECT
+        backdrop = pygame.Surface(backdrop_rect.size, pygame.SRCALPHA)
+        pygame.draw.rect(
+            backdrop,
+            (0, 0, 0, 120),
+            backdrop.get_rect(),
+            border_radius=8,
+        )
+        self.screen.blit(backdrop, backdrop_rect.topleft)
+
         theme = theme_manager.get_theme()
         font = font_manager.get_font("normal")
 
@@ -498,6 +508,15 @@ class PygameGameInterface(GameInterface):
         character = game_state.get("character")
         actions = game_state.get("actions", [])
 
+        system_buttons = self.buttons[len(self.layout.ACTION_BUTTONS):]
+        # 整体左移，避开状态栏背景图中的手形装饰。
+        # UIComponent.rect 是只读 property，由 position/size 派生，改 position 即可。
+        if not getattr(self, "_system_buttons_offset_applied", False):
+            for button in system_buttons:
+                px, py = button.position
+                button.position = (px + self.layout.SYSTEM_BUTTONS_X_OFFSET, py)
+            self._system_buttons_offset_applied = True
+
         # 更新游戏动作按钮状态
         if character and actions:
             # 只更新游戏动作按钮（前4个按钮）
@@ -505,7 +524,6 @@ class PygameGameInterface(GameInterface):
 
             # 分离游戏动作按钮和系统动作按钮
             game_buttons = self.buttons[:len(self.layout.ACTION_BUTTONS)]
-            system_buttons = self.buttons[len(self.layout.ACTION_BUTTONS):]
 
             # 更新游戏动作按钮状态
             for i, button in enumerate(game_buttons):
@@ -548,10 +566,15 @@ class PygameGameInterface(GameInterface):
         # 渲染日志条目
         start_x, start_y = self.layout.LOG_CONFIG["start_pos"]
         line_height = self.layout.LOG_CONFIG["line_height"]
+        start_x = self.layout.LOG_RECT.left + self.layout.LOG_TEXT_PADDING_X
+        text_right = self.layout.LOG_RECT.right - self.layout.LOG_TEXT_PADDING_X
+        text_bottom = self.layout.LOG_RECT.bottom - self.layout.LOG_TEXT_PADDING_BOTTOM
+        text_clip = pygame.Rect(start_x, start_y, text_right - start_x, text_bottom - start_y)
+        self.screen.set_clip(text_clip)
 
         for i, entry in enumerate(log_entries):
             y_pos = start_y + i * line_height
-            if y_pos + line_height > self.layout.LOG_RECT.bottom:
+            if y_pos + line_height > text_bottom:
                 break
 
             # 根据日志类型选择颜色
@@ -566,11 +589,23 @@ class PygameGameInterface(GameInterface):
             text_surface = font.render(entry, True, color)
             self.screen.blit(text_surface, (start_x, y_pos))
 
+        self.screen.set_clip(None)
+
     def _render_status_bar(self, game_state: Dict[str, Any]):
         """渲染状态栏"""
         character = game_state.get("character")
         if not character:
             return
+
+        backdrop_rect = self.layout.CHARACTER_INFO_BACKDROP_RECT
+        backdrop = pygame.Surface(backdrop_rect.size, pygame.SRCALPHA)
+        pygame.draw.rect(
+            backdrop,
+            (0, 0, 0, 120),
+            backdrop.get_rect(),
+            border_radius=8,
+        )
+        self.screen.blit(backdrop, backdrop_rect.topleft)
 
         theme = theme_manager.get_theme()
         font = font_manager.get_font("normal")
@@ -602,8 +637,14 @@ class PygameGameInterface(GameInterface):
         status_text = status_config["recommendation_template"].format(
             recommendation=recommendation
         )
-        status_surface = font.render(status_text, True, theme.TEXT_SECONDARY)
-        self.screen.blit(status_surface, status_config["recommendation_pos"])
+        status_surface = font.render(status_text, True, theme.TEXT_PRIMARY)
+        rec_pos = (
+            self.layout.STATUS_RECT.left + self.layout.LOG_TEXT_PADDING_X,
+            self.layout.STATUS_RECT.bottom
+            - self.layout.LOG_TEXT_PADDING_BOTTOM
+            - status_surface.get_height(),
+        )
+        self.screen.blit(status_surface, rec_pos)
 
         # 渲染状态栏按钮
         for button in self.buttons[-2:]:  # 只渲染状态栏按钮
@@ -709,7 +750,8 @@ class PygameGameInterface(GameInterface):
 
         title_line_height = title_font.get_linesize()
         sub_line_height = normal_font.get_linesize()
-        current_bottom = min(status_rect.top - gap, screen_height - gap)
+        title_sub_gap = 6
+        current_bottom = min(self.layout.LOG_RECT.top - gap, screen_height - gap)
         now = pygame.time.get_ticks()
 
         # 最新的提示靠近状态栏，较早的提示依次向上排列
@@ -717,7 +759,7 @@ class PygameGameInterface(GameInterface):
             sub_message = str(toast.get("sub_message", ""))
             toast_height = padding * 2 + title_line_height
             if sub_message:
-                toast_height += sub_line_height
+                toast_height += sub_line_height + title_sub_gap
 
             toast_rect = pygame.Rect(0, 0, toast_width, toast_height)
             toast_rect.centerx = screen_width // 2
@@ -741,7 +783,7 @@ class PygameGameInterface(GameInterface):
                 toast_surface,
                 tone_color,
                 toast_surface.get_rect(),
-                2
+                1
             )
 
             # 绘制提示标题
@@ -765,7 +807,7 @@ class PygameGameInterface(GameInterface):
                 sub_rect = sub_surface.get_rect(
                     midleft=(
                         padding,
-                        padding + title_line_height + sub_line_height // 2
+                        padding + title_line_height + title_sub_gap + sub_line_height // 2
                     )
                 )
                 toast_surface.blit(sub_surface, sub_rect)

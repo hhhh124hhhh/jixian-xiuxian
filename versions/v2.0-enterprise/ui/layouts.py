@@ -24,6 +24,9 @@ class Layout:
     MARGIN_LEFT = 50
     MARGIN_RIGHT = 50
     PADDING = 10
+    LOG_TEXT_PADDING_X = 12
+    LOG_TEXT_PADDING_BOTTOM = 10
+    SYSTEM_BUTTONS_X_OFFSET = -15
 
     # 区域位置计算
     @property
@@ -49,6 +52,16 @@ class Layout:
             self.HEADER_HEIGHT + 20,
             self.SCREEN_WIDTH - self.MARGIN_LEFT - self.MARGIN_RIGHT,
             self.INFO_HEIGHT
+        )
+
+    @property
+    def CHARACTER_INFO_BACKDROP_RECT(self) -> pygame.Rect:
+        """角色状态文字底板区域"""
+        return pygame.Rect(
+            self.INFO_RECT.x + 8,
+            self.INFO_RECT.y + 8,
+            300,
+            self.INFO_HEIGHT - 16
         )
 
     @property
