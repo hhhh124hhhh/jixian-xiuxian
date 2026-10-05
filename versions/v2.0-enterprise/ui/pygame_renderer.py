@@ -98,6 +98,7 @@ class Button(UIComponent):
         super().__init__(position, size)
         self.text = text
         self.action = action
+        self.image = None  # 圆形图标 Surface，有图时替代矩形绘制
         self.color = color
         self.text_color = text_color
         self.hover_color = tuple(min(255, c + 20) for c in color)
@@ -128,6 +129,18 @@ class Button(UIComponent):
         else:
             color = theme.get_button_color(self.text)
             text_color = theme.BUTTON_TEXT
+
+        # 有图标时绘制圆形图标按钮
+        if self.image is not None:
+            img = self.image
+            if not self.enabled:
+                img = img.copy()
+                img.fill((160, 160, 160, 120), special_flags=pygame.BLEND_RGBA_MULT)
+            surface.blit(img, (x, y))
+            if self.is_hovered and self.enabled:
+                pygame.draw.circle(surface, (255, 235, 180),
+                                   (x + w // 2, y + h // 2), w // 2 + 3, 2)
+            return
 
         # 绘制按钮背景
         pygame.draw.rect(surface, color, (x, y, w, h))
@@ -229,6 +242,12 @@ class PygameGameInterface(GameInterface):
         self.progress_bars = {}
         self.panels = {}
 
+        # GPT 生成的 UI 美术资产（文件名 -> Surface，缺失则为 None）
+        self.ui_assets = {}
+
+        # 非阻断 toast 队列
+        self.toasts = []
+
         # 事件回调
         self.on_action_selected = None
         self.on_restart_requested = None
@@ -245,6 +264,9 @@ class PygameGameInterface(GameInterface):
 
             # 初始化UI组件
             self._init_ui_components()
+
+            # 加载 GPT 生成的 UI 美术资产（缺失不阻塞）
+            self._load_ui_assets()
 
             return True
         except Exception as e:
@@ -305,6 +327,53 @@ class PygameGameInterface(GameInterface):
             button.on_click = self._on_button_click
             self.buttons.append(button)
 
+    def _load_ui_assets(self):
+        """加载 assets/ui 下的美术资源，单个缺失不影响其他"""
+        import os
+        asset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "assets", "ui")
+        files = {
+            "bg": "bg_main.png",
+            "banner": "banner_title.png",
+            "statusbar": "bar_status.png",
+            "dialog": "panel_dialog.png",
+            "btn_meditate": "btn_meditate.png",
+            "btn_cultivate": "btn_cultivate.png",
+            "btn_pill": "btn_pill.png",
+            "btn_wait": "btn_wait.png",
+            "tide_buff": "icon_tide_buff.png",
+            "tide_debuff": "icon_tide_debuff.png",
+        }
+        for key, fname in files.items():
+            path = os.path.join(asset_dir, fname)
+            try:
+                if key == "bg":
+                    img = pygame.image.load(path).convert()
+                else:
+                    img = pygame.image.load(path).convert_alpha()
+                self.ui_assets[key] = img
+            except Exception as e:
+                self.ui_assets[key] = None
+                print(f"UI资产加载失败 {fname}: {e}")
+
+        # 把图标赋给对应的动作按钮，并把点击区域改成正方形
+        action_to_asset = {
+            "meditate": "btn_meditate",
+            "cultivate": "btn_cultivate",
+            "consume_pill": "btn_pill",
+            "wait": "btn_wait",
+        }
+        for button in self.buttons:
+            asset_key = action_to_asset.get(button.action)
+            img = self.ui_assets.get(asset_key) if asset_key else None
+            if img is not None:
+                size = 96
+                button.image = pygame.transform.smoothscale(img, (size, size))
+                rx, ry, rw, rh = button.rect
+                button.position = (rx + rw // 2 - size // 2,
+                                   ry + rh // 2 - size // 2)
+                button.size = (size, size)
+
     def _on_button_click(self, action: str):
         """按钮点击回调"""
         # 检查是否为系统动作
@@ -327,13 +396,23 @@ class PygameGameInterface(GameInterface):
         font_title = font_manager.get_font("title")
         font_normal = font_manager.get_font("normal")
 
-        # 清屏
-        self.screen.fill(theme.BACKGROUND)
+        # 背景：有美术资产用图，无图回退纯色
+        bg = self.ui_assets.get("bg")
+        if bg is not None:
+            self.screen.blit(pygame.transform.smoothscale(bg, (self.width, self.height)), (0, 0))
+        else:
+            self.screen.fill(theme.BACKGROUND)
 
-        # 渲染标题
-        title_text = font_title.render("极简修仙 MVP", True, theme.TEXT_PRIMARY)
-        title_rect = title_text.get_rect(centerx=self.width // 2, y=10)
-        self.screen.blit(title_text, title_rect)
+        # 标题横幅（有图用图，无图用文字）
+        banner = self.ui_assets.get("banner")
+        if banner is not None:
+            bw, bh = 420, 140
+            scaled = pygame.transform.smoothscale(banner, (bw, bh))
+            self.screen.blit(scaled, (self.width // 2 - bw // 2, 4))
+        else:
+            title_text = font_title.render("极简修仙 MVP", True, theme.TEXT_PRIMARY)
+            title_rect = title_text.get_rect(centerx=self.width // 2, y=10)
+            self.screen.blit(title_text, title_rect)
 
         # 渲染角色信息
         self._render_character_info(game_state)
@@ -346,6 +425,10 @@ class PygameGameInterface(GameInterface):
 
         # 渲染状态栏
         self._render_status_bar(game_state)
+
+        # 非阻断 toast（灵气潮汐等）
+        self.update_toasts()
+        self.draw_toasts()
 
         # 更新显示
         pygame.display.flip()
@@ -492,6 +575,26 @@ class PygameGameInterface(GameInterface):
         theme = theme_manager.get_theme()
         font = font_manager.get_font("normal")
 
+        # 状态栏背景图
+        statusbar = self.ui_assets.get("statusbar")
+        if statusbar is not None:
+            rect = self.layout.STATUS_RECT
+            self.screen.blit(
+                pygame.transform.smoothscale(statusbar, (rect.width, rect.height)),
+                (rect.x, rect.y))
+
+        # 灵气潮汐待生效图标
+        tide_effect = game_state.get("tide_effect")
+        if tide_effect:
+            tone = tide_effect.get("tone", "buff")
+            icon = self.ui_assets.get("tide_buff" if tone == "buff" else "tide_debuff")
+            if icon is not None:
+                rect = self.layout.STATUS_RECT
+                size = 40
+                scaled = pygame.transform.smoothscale(icon, (size, size))
+                self.screen.blit(scaled, (rect.right - size - 6,
+                                          rect.y + (rect.height - size) // 2))
+
         # 渲染推荐信息
         recommendation = self.renderer.format_status_recommendation(character)
         status_config = self.layout.STATUS_CONFIG
@@ -543,6 +646,156 @@ class PygameGameInterface(GameInterface):
         """显示消息对话框"""
         # 简单实现：打印到控制台
         print(f"[{message_type.upper()}] {title}: {message}")
+
+    def show_toast(self, title, sub_message="", tone="info", duration_ms=2800):
+        """显示屏幕提示"""
+        if tone not in ("buff", "debuff", "info"):
+            tone = "info"
+
+        self.toasts.append({
+            "title": title,
+            "sub_message": sub_message,
+            "tone": tone,
+            "duration_ms": duration_ms,
+            "created_ms": pygame.time.get_ticks()
+        })
+
+        # 最多保留三条提示，超出时丢弃最早的提示
+        while len(self.toasts) > 3:
+            self.toasts.pop(0)
+    def update_toasts(self):
+        """移除已经过期的屏幕提示"""
+        now = pygame.time.get_ticks()
+        self.toasts = [
+            toast for toast in self.toasts
+            if toast["created_ms"] + toast["duration_ms"] >= now
+        ]
+    def draw_toasts(self):
+        """绘制屏幕底部的提示消息"""
+        if self.screen is None:
+            return
+
+        if not self.toasts:
+            return
+
+        theme = theme_manager.get_theme()
+        title_font = font_manager.get_font("title")
+        normal_font = font_manager.get_font("normal")
+        status_rect = self.layout.STATUS_RECT
+        screen_width, screen_height = self.screen.get_size()
+        margin = 16
+        gap = 8
+        padding = 12
+
+        # 根据提示内容计算统一的提示面板宽度
+        content_width = 1
+        for toast in self.toasts:
+            content_width = max(
+                content_width,
+                title_font.size(str(toast.get("title", "")))[0]
+            )
+            if toast.get("sub_message"):
+                content_width = max(
+                    content_width,
+                    normal_font.size(str(toast.get("sub_message", "")))[0]
+                )
+
+        available_width = max(1, screen_width - margin * 2)
+        toast_width = min(
+            available_width,
+            max(status_rect.width, content_width + padding * 2)
+        )
+        toast_width = max(1, toast_width)
+
+        title_line_height = title_font.get_linesize()
+        sub_line_height = normal_font.get_linesize()
+        current_bottom = min(status_rect.top - gap, screen_height - gap)
+        now = pygame.time.get_ticks()
+
+        # 最新的提示靠近状态栏，较早的提示依次向上排列
+        for toast in reversed(self.toasts):
+            sub_message = str(toast.get("sub_message", ""))
+            toast_height = padding * 2 + title_line_height
+            if sub_message:
+                toast_height += sub_line_height
+
+            toast_rect = pygame.Rect(0, 0, toast_width, toast_height)
+            toast_rect.centerx = screen_width // 2
+            toast_rect.bottom = current_bottom
+            current_bottom -= toast_height + gap
+
+            # 使用带透明通道的独立面板绘制提示
+            toast_surface = pygame.Surface(toast_rect.size, pygame.SRCALPHA)
+            toast_surface.fill((30, 30, 30, 220))
+
+            tone = toast.get("tone", "info")
+            if tone == "buff":
+                tone_color = getattr(theme, "TIDE_BUFF", (32, 201, 151))
+            elif tone == "debuff":
+                tone_color = getattr(theme, "TIDE_DEBUFF", (253, 126, 20))
+            else:
+                tone_color = theme.TEXT_SECONDARY
+
+            # 绘制提示边框
+            pygame.draw.rect(
+                toast_surface,
+                tone_color,
+                toast_surface.get_rect(),
+                2
+            )
+
+            # 绘制提示标题
+            title_surface = title_font.render(
+                str(toast.get("title", "")),
+                True,
+                tone_color
+            )
+            title_rect = title_surface.get_rect(
+                midleft=(padding, padding + title_line_height // 2)
+            )
+            toast_surface.blit(title_surface, title_rect)
+
+            # 绘制提示副文案
+            if sub_message:
+                sub_surface = normal_font.render(
+                    sub_message,
+                    True,
+                    theme.TEXT_SECONDARY
+                )
+                sub_rect = sub_surface.get_rect(
+                    midleft=(
+                        padding,
+                        padding + title_line_height + sub_line_height // 2
+                    )
+                )
+                toast_surface.blit(sub_surface, sub_rect)
+
+            # 提示结束前五百毫秒线性淡出
+            remaining_ms = (
+                toast["created_ms"] + toast["duration_ms"] - now
+            )
+            if remaining_ms <= 500:
+                alpha = max(0, min(255, int(remaining_ms * 255 / 500)))
+                toast_surface.set_alpha(alpha)
+
+            self.screen.blit(toast_surface, toast_rect)
+    def show_tide_triggered(self, effect):
+        """显示灵气潮汐触发提示"""
+        self.show_toast(
+            title="灵气潮汐触发",
+            sub_message=(
+                f"{effect['label']}｜待生效，执行对应行动后自动消耗"
+            ),
+            tone=effect.get("tone", "buff")
+        )
+    def show_tide_consumed(self, label, tone, before, after):
+        """显示灵气潮汐消耗提示"""
+        self.show_toast(
+            title="潮汐已生效并消耗",
+            sub_message=f"{label}｜{before} → {after}",
+            tone=tone,
+            duration_ms=2200
+        )
 
     def get_character_name(self) -> Optional[str]:
         """获取角色名称输入"""
