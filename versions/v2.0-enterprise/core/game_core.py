@@ -2,11 +2,13 @@
 游戏核心逻辑 - 集成所有游戏模块
 """
 
+import copy
 from typing import Dict, Any, Optional, List
 from models import CharacterStats, GameLog
 from actions import ActionFactory
 from rules import game_rules, difficulty_settings
 from core.event_handler import event_handler, EventType
+from core.tide_system import TideSystem
 
 
 class GameCore:
@@ -19,6 +21,9 @@ class GameCore:
         self.game_state: Dict[str, Any] = {}
         self.is_game_over = False
         self.difficulty = "normal"
+
+        # 初始化灵气潮汐状态
+        self.tide_system = TideSystem()
 
         # 初始化动作列表
         self._init_actions()
@@ -163,6 +168,38 @@ class GameCore:
                     }
                 )
 
+            # 灵气潮汐逻辑仅处理成功动作
+            if result.success:
+                consumed = self.tide_system.check_and_consume(
+                    action_name,
+                    result,
+                    self.character
+                )
+                if consumed:
+                    result.effects["tide_applied"] = consumed["label"]
+
+                    # 分发潮汐消耗事件
+                    event_handler.dispatch_event(
+                        EventType.QI_TIDE_CONSUMED,
+                        {
+                            "label": consumed["label"],
+                            "tone": consumed["tone"],
+                            "before": consumed["before"],
+                            "after": consumed["after"]
+                        }
+                    )
+
+                triggered = self.tide_system.register_action(result)
+                if triggered:
+                    # 分发潮汐触发事件
+                    event_handler.dispatch_event(
+                        EventType.QI_TIDE_TRIGGERED,
+                        {
+                            "effect": triggered["effect"],
+                            "total": triggered["total"]
+                        }
+                    )
+
             # 更新游戏状态
             self._update_game_state()
 
@@ -196,7 +233,10 @@ class GameCore:
             "is_game_over": self.is_game_over,
             "difficulty": self.difficulty,
             "power_level": game_rules.get_character_power_level(self.character),
-            "recommendation": game_rules.get_action_recommendation(self.character)
+            "recommendation": game_rules.get_action_recommendation(self.character),
+            "tide_effect": copy.deepcopy(self.tide_system.pending)
+            if self.tide_system.pending else None,
+            "tide_progress": self.tide_system.action_count,
         }
 
     def _check_game_over(self):

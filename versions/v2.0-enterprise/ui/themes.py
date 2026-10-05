@@ -24,6 +24,8 @@ class Theme:
     MP_BACKGROUND = (204, 229, 255)        # 仙力值背景
     EXP_COLOR = (40, 167, 69)              # 经验值颜色 (绿色)
     EXP_BACKGROUND = (206, 235, 203)       # 经验值背景
+    TIDE_BUFF = (32, 201, 151)             # 灵气潮汐增益 (青绿)
+    TIDE_DEBUFF = (253, 126, 20)           # 灵气潮汐减益 (橙红)
 
     # 按钮颜色
     BUTTON_NORMAL = (0, 123, 255)          # 按钮正常状态
@@ -109,6 +111,8 @@ class DarkTheme(Theme):
     HP_COLOR = (255, 107, 107)
     MP_COLOR = (91, 192, 222)
     EXP_COLOR = (92, 184, 92)
+    TIDE_BUFF = (32, 201, 151)
+    TIDE_DEBUFF = (253, 126, 20)
 
     BUTTON_NORMAL = (91, 192, 222)
     BUTTON_HOVER = (121, 202, 222)
