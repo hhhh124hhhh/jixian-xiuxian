@@ -11,7 +11,13 @@ from datetime import datetime
 # 新增状态字段的默认值：旧存档缺这些字段时按默认值补齐
 STATE_FIELD_DEFAULTS = {
     "breath_combo": 0,
-    "fire_deviation_turn": 0
+    "fire_deviation_turn": 0,
+    # 玩法 v2：渡劫失败计数 / 破心魔加速 / 境界配额 / 本境界吃丹药数
+    "tribulation_fails": 0,
+    "demon_cleared_bonus": 0,
+    "pills_quota": 6,
+    "cultivate_quota": 12,
+    "pills_used_in_realm": 0,
 }
 
 

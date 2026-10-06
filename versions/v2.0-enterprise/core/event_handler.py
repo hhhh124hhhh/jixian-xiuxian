@@ -27,6 +27,8 @@ class EventType(Enum):
     MEDITATION_STREAK = "meditation_streak"
     QI_TIDE_TRIGGERED = "qi_tide_triggered"
     QI_TIDE_CONSUMED = "qi_tide_consumed"
+    TRIBULATION_RESOLVED = "tribulation_resolved"
+    DEMON_CLEARED = "demon_cleared"
 
     # 数据管理事件
     SAVE_GAME = "save_game"
@@ -263,6 +265,8 @@ class AchievementTracker:
         self.event_handler.register_listener(EventType.PILL_OBTAINED, self._on_pill_obtained)
         self.event_handler.register_listener(EventType.ACTION_EXECUTED, self._on_action_executed)
         self.event_handler.register_listener(EventType.QI_TIDE_TRIGGERED, self._on_tide_triggered)
+        self.event_handler.register_listener(EventType.TRIBULATION_RESOLVED, self._on_tribulation)
+        self.event_handler.register_listener(EventType.DEMON_CLEARED, self._on_demon_cleared)
 
     def _on_level_up(self, event: GameEvent):
         """处理等级提升事件"""
@@ -313,6 +317,24 @@ class AchievementTracker:
             self.unlock_achievement("tide_first", "初感潮汐")
         if total >= 10:
             self.unlock_achievement("tide_veteran", "潮汐老手")
+
+    def _on_tribulation(self, event: GameEvent):
+        """处理渡劫结算事件"""
+        success = event.data.get("success", False)
+        fails = event.data.get("tribulation_fails", 0)
+
+        if success:
+            self.unlock_achievement("first_tribulation", "初次渡劫")
+        # 前 2 次失败给「劫后余生」
+        if not success and event.data.get("survival_achievement"):
+            self.unlock_achievement("survivor_after_tribulation", "劫后余生")
+        if fails >= 3:
+            self.unlock_achievement("tribulation_storm", "多劫之身")
+
+    def _on_demon_cleared(self, event: GameEvent):
+        """处理破心魔事件"""
+        if event.data.get("demon_cleared_bonus", 0) > 0:
+            self.unlock_achievement("demon_slayer", "破心魔者")
 
     def unlock_achievement(self, achievement_id: str, description: str):
         """解锁成就"""

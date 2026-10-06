@@ -125,6 +125,28 @@ class ExperienceComponent:
 
         return False, None
 
+    def is_exp_full(self) -> bool:
+        """当前境界经验条是否已满（渡劫窗口，见 rules.TribulationRules）"""
+        if self.current_realm == RealmLevel.ASCENSION:
+            return False
+        threshold = self.realm_thresholds[self.current_realm]
+        return self.current_level_experience >= threshold
+
+    def spend_realm_experience(self, amount: int) -> int:
+        """扣除当前境界经验（渡劫失败的损失），实际扣除量不会为负"""
+        loss = max(0, min(int(amount), self.current_level_experience))
+        self.current_level_experience -= loss
+        self.total_experience -= loss
+        return loss
+
+    def reset_realm_experience(self):
+        """突破成功后当前境界经验清零重计"""
+        self.current_level_experience = 0
+
+    def add_bonus_experience(self, amount: int) -> Tuple[bool, Optional[str]]:
+        """补充经验（成就补偿等小额收益），走与普通加经验一致的溢出逻辑"""
+        return self.add_experience(amount)
+
     def get_progress_percentage(self) -> float:
         """获取当前境界进度百分比"""
         threshold = self.realm_thresholds[self.current_realm]
@@ -181,6 +203,9 @@ class InventoryComponent:
 class CharacterStats:
     """角色状态管理类 - 组件化设计"""
     def __init__(self, name: str = "无名修士"):
+        # 玩法 v2 的初始配额取自规则常量（延迟导入避免 rules <-> models 循环依赖）
+        from rules import PILLS_QUOTA_PER_REALM, CULTIVATE_QUOTA_PER_REALM
+
         self.name = name
         self.health = HealthComponent()
         self.mana = ManaComponent()
@@ -195,6 +220,13 @@ class CharacterStats:
         # 吐纳连击状态（数值规则见 rules.BreathComboRules）
         self.breath_combo = 0  # 吐纳连击层数
         self.fire_deviation_turn = 0  # 走火后气息紊乱剩余回合数
+
+        # 玩法 v2 状态（数值规则见 rules.TribulationRules / RealmQuotaRules / DemonClearingRules）
+        self.tribulation_fails = 0  # 本局渡劫失败次数（"劫后余生"成就用）
+        self.demon_cleared_bonus = 0  # 破心魔剩余加速次数
+        self.pills_quota = PILLS_QUOTA_PER_REALM  # 本境界剩余丹药配额
+        self.cultivate_quota = CULTIVATE_QUOTA_PER_REALM  # 本境界剩余修炼配额
+        self.pills_used_in_realm = 0  # 本境界已吃丹药数（渡劫成功率）
 
     def is_alive(self) -> bool:
         """角色是否存活"""
@@ -237,6 +269,12 @@ class CharacterStats:
             "total_actions": self.total_actions,
             "breath_combo": self.breath_combo,
             "fire_deviation_turn": self.fire_deviation_turn,
+            "tribulation_fails": self.tribulation_fails,
+            "demon_cleared_bonus": self.demon_cleared_bonus,
+            "pills_quota": self.pills_quota,
+            "cultivate_quota": self.cultivate_quota,
+            "pills_used_in_realm": self.pills_used_in_realm,
+            "exp_full": self.experience.is_exp_full(),
             "alive": self.is_alive()
         }
 
