@@ -116,9 +116,33 @@ class GameApplication:
             print(f"应用程序初始化失败: {e}")
             return False
 
+    def _run_frame(self) -> None:
+        """执行一帧：输入 -> 更新 -> 渲染 -> 帧率控制 -> 结束检查"""
+        # 处理输入
+        ui_event = self.ui.handle_input()
+
+        if ui_event:
+            self._handle_ui_event(ui_event)
+
+        # 更新游戏状态
+        if not self.paused:
+            self._update_game_state()
+
+        # 渲染界面
+        game_state = self.game_core.get_game_state()
+        self.ui.render(game_state)
+
+        # 控制帧率
+        if self.clock:
+            self.clock.tick(self.fps)
+
+        # 检查游戏是否结束
+        if self.game_core.is_game_over:
+            self._handle_game_over()
+
     def run(self) -> int:
         """
-        运行主循环
+        运行主循环（桌面同步版）
         Returns:
             int: 退出代码
         """
@@ -130,33 +154,41 @@ class GameApplication:
 
         try:
             while self.running:
-                # 处理输入
-                ui_event = self.ui.handle_input()
-
-                if ui_event:
-                    self._handle_ui_event(ui_event)
-
-                # 更新游戏状态
-                if not self.paused:
-                    self._update_game_state()
-
-                # 渲染界面
-                game_state = self.game_core.get_game_state()
-                self.ui.render(game_state)
-
-                # 控制帧率
-                if self.clock:
-                    self.clock.tick(self.fps)
-
-                # 检查游戏是否结束
-                if self.game_core.is_game_over:
-                    self._handle_game_over()
+                self._run_frame()
 
             return 0
 
         except KeyboardInterrupt:
             print("\n游戏被用户中断")
             return 130
+        except Exception as e:
+            print(f"运行时错误: {e}")
+            return 1
+        finally:
+            self.shutdown()
+
+    async def async_run(self) -> int:
+        """运行主循环（pygbag 网页异步版）
+
+        浏览器里同步 while 会卡死事件循环导致画布不刷新，
+        每帧 await asyncio.sleep(0) 把控制权交还浏览器。
+        """
+        import asyncio
+
+        if not self.game_core.character:
+            print("游戏未初始化")
+            return 1
+
+        self.running = True
+
+        try:
+            while self.running:
+                self._run_frame()
+                # 交还控制权，让浏览器重绘画布/处理事件
+                await asyncio.sleep(0)
+
+            return 0
+
         except Exception as e:
             print(f"运行时错误: {e}")
             return 1
@@ -514,8 +546,12 @@ def main():
         print("初始化失败，程序退出")
         return 1
 
-    # 运行应用程序
-    exit_code = app.run()
+    # 网页版（pygbag/emscripten）走异步主循环，否则浏览器画布不刷新
+    if sys.platform == "emscripten":
+        import asyncio
+        exit_code = asyncio.run(app.async_run())
+    else:
+        exit_code = app.run()
     return exit_code
 
 
