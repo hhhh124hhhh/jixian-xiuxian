@@ -61,6 +61,23 @@ try:
 except Exception as e:
     print(f"[DIAG] 垫片安装失败: {e}")
 
+# 钉死 pygame 子模块：wasm 下运行时访问 pygame.font / pygame.mixer 等
+# 会触发 pygame/__init__.py 重执行（from pygame.constants import * 失败）。
+# 在启动时（此时 import 正常）把子模块抓出来钉死，后续访问直接走缓存。
+try:
+    import sys as _sys2
+    import pygame as _pg2
+    for _modname in ["font", "display", "event", "time", "draw", "image", "mixer", "transform", "key", "mouse", "joystick"]:
+        try:
+            _mod = __import__(f"pygame.{_modname}", fromlist=["*"])
+            setattr(_pg2, _modname, _mod)
+            _sys2.modules[f"pygame.{_modname}"] = _mod
+        except Exception:
+            pass
+    print("[DIAG] pygame 子模块已钉死")
+except Exception as e:
+    print(f"[DIAG] 子模块钉死失败: {e}")
+
 from application import main as app_main
 
 
