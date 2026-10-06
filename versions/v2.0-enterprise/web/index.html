@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>极简修仙 · Web 版</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <!-- 顶栏 -->
+  <header id="topbar">
+    <h1>极简修仙</h1>
+    <div id="turn-info">第 <span id="turn-count">0</span> 回合</div>
+  </header>
+
+  <!-- 角色面板 -->
+  <section id="char-panel">
+    <div id="avatar">修</div>
+    <div id="char-main">
+      <div id="char-name-line"><span id="char-name">无名修士</span><span class="dot"> · </span><span id="char-realm">炼气期</span></div>
+      <div class="bar-row">
+        <label>气血</label>
+        <div class="bar"><div id="hp-fill" class="fill hp"></div></div>
+        <span id="hp-text" class="bar-text">100/100</span>
+      </div>
+      <div class="bar-row">
+        <label>仙力</label>
+        <div class="bar"><div id="mp-fill" class="fill mp"></div></div>
+        <span id="mp-text" class="bar-text">50/100</span>
+      </div>
+      <div class="bar-row">
+        <label>经验</label>
+        <div class="bar"><div id="exp-fill" class="fill exp"></div></div>
+        <span id="exp-text" class="bar-text">0/100</span>
+      </div>
+    </div>
+    <div id="char-side">
+      <div id="pills">💊 <span id="pills-count">0</span></div>
+      <div id="combo-line">--</div>
+      <div id="quota-line">--</div>
+    </div>
+  </section>
+
+  <!-- 状态栏：潮汐/渡劫/推荐 -->
+  <section id="status-bar">
+    <div id="tide-line">灵气潮汐：--</div>
+    <div id="trib-line">渡劫：--</div>
+    <div id="reco-line">指引：--</div>
+  </section>
+
+  <!-- 动作按钮 -->
+  <section id="actions">
+    <button class="act-btn" data-action="meditate">🧘<span>打坐</span></button>
+    <button class="act-btn" data-action="consume_pill">💊<span>吃丹药</span></button>
+    <button class="act-btn" data-action="cultivate">⚔️<span>修炼</span></button>
+    <button class="act-btn" data-action="wait">☯️<span>等待</span></button>
+  </section>
+  <section id="sys-actions">
+    <button class="sys-btn" data-action="restart">↻ 重开</button>
+  </section>
+
+  <!-- 游戏日志 -->
+  <section id="log-panel">
+    <h2>修仙日志</h2>
+    <div id="game-log"></div>
+  </section>
+
+  <!-- 特效层 -->
+  <div id="fx-layer"></div>
+
+  <!-- 加载遮罩 -->
+  <div id="loading">
+    <div class="load-title">极简修仙</div>
+    <div class="load-sub" id="load-status">正在加载…</div>
+    <div class="load-bar"><div id="load-fill"></div></div>
+  </div>
+</div>
+
+<script src="js/game-logic.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
