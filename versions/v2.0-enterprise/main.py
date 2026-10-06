@@ -13,6 +13,18 @@ import os
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# 诊断：检查 pygame 模块状态（pygbag wasm 环境排查用）
+try:
+    import pygame
+    print(f"[DIAG] pygame file: {getattr(pygame, '__file__', 'N/A')}")
+    print(f"[DIAG] has init: {hasattr(pygame, 'init')}")
+    print(f"[DIAG] has K_1: {hasattr(pygame, 'K_1')}")
+    print(f"[DIAG] has Rect: {hasattr(pygame, 'Rect')}")
+    print(f"[DIAG] has font: {hasattr(pygame, 'font')}")
+    print(f"[DIAG] version: {getattr(pygame, 'version', 'N/A')}")
+except Exception as e:
+    print(f"[DIAG] pygame import failed: {e}")
+
 from application import main as app_main
 
 
