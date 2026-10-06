@@ -39,6 +39,27 @@ from .config import effects_config
 from .sound_manager import SoundManager
 from .effects import EffectManager, ease_out
 
+
+def _K(name: str, fallback: int) -> int:
+    """按键常量兼容：pygbag 的 pygame-ce wasm 版缺 pygame.constants，
+    直接 getattr(pygame, ...) 会 AttributeError。用 ASCII 码回退
+    （SDL 键码与 ASCII 一致：K_1=49, K_a=97, K_ESCAPE=27, K_RETURN=13）。"""
+    return getattr(pygame, name, fallback)
+
+
+# 按键常量（桌面 pygame 用原生值，wasm 缺失时用 ASCII 回退）
+K_1 = _K("K_1", ord("1"))
+K_2 = _K("K_2", ord("2"))
+K_3 = _K("K_3", ord("3"))
+K_4 = _K("K_4", ord("4"))
+K_r = _K("K_r", ord("r"))
+K_s = _K("K_s", ord("s"))
+K_y = _K("K_y", ord("y"))
+K_n = _K("K_n", ord("n"))
+K_ESCAPE = _K("K_ESCAPE", 27)
+K_RETURN = _K("K_RETURN", 13)
+K_KP_ENTER = _K("K_KP_ENTER", K_RETURN)
+
 # 通知横幅的垂直内边距（使单行内容刚好撑满 TOAST_SLOT_HEIGHT）
 TOAST_BANNER_VERTICAL_PADDING = 13
 # 通知横幅左侧的色调标记宽度，用来区分灵气潮汐的增益/减益
@@ -55,13 +76,13 @@ class PygameInputHandler(InputHandler):
     def __init__(self, layout):
         self.layout = layout
         self.shortcuts = {
-            pygame.K_1: "meditate",
-            pygame.K_2: "consume_pill",
-            pygame.K_3: "cultivate",
-            pygame.K_4: "wait",
-            pygame.K_r: "restart",
-            pygame.K_s: "settings",  # 添加设置快捷键
-            pygame.K_ESCAPE: "quit"
+            K_1: "meditate",
+            K_2: "consume_pill",
+            K_3: "cultivate",
+            K_4: "wait",
+            K_r: "restart",
+            K_s: "settings",  # 添加设置快捷键
+            K_ESCAPE: "quit"
         }
 
     def handle_mouse_click(self, position: tuple) -> Optional[str]:
@@ -1048,7 +1069,7 @@ class PygameGameInterface(GameInterface):
                 return UIEvent("quit", {}, pygame.time.get_ticks())
 
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+                if event.key == K_ESCAPE:
                     return UIEvent("quit", {}, pygame.time.get_ticks())
 
                 # 处理快捷键
@@ -1451,7 +1472,7 @@ class PygameGameInterface(GameInterface):
         hover_no = False
         draw_dialog(hover_yes, hover_no)
 
-        keypad_enter = getattr(pygame, "K_KP_ENTER", pygame.K_RETURN)
+        keypad_enter = K_KP_ENTER
 
         while True:
             for event in pygame.event.get():
@@ -1464,12 +1485,12 @@ class PygameGameInterface(GameInterface):
                     typed = (getattr(event, "unicode", "") or "").lower()
 
                     if (
-                        key in (pygame.K_y, pygame.K_RETURN, keypad_enter)
+                        key in (K_y, K_RETURN, keypad_enter)
                         or typed == "y"
                     ):
                         return True
 
-                    if key in (pygame.K_n, pygame.K_ESCAPE) or typed == "n":
+                    if key in (K_n, K_ESCAPE) or typed == "n":
                         return False
 
                 elif event.type == pygame.MOUSEMOTION:
