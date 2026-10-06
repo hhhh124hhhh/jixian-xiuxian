@@ -196,7 +196,7 @@ class FontManager:
             self._resolved_font = resolve_cjk_font(font_name or self.theme.FONT_NAME)
         return self._resolved_font
 
-    def get_font(self, size_name: str = "normal", font_name: str = None) -> pygame.font.Font:
+    def get_font(self, size_name: str = "normal", font_name: str = None) -> "pygame.font.Font":
         """获取字体"""
         font_name = self._get_effective_font_name(font_name)
         size = self.theme.FONT_SIZES.get(size_name, self.theme.FONT_SIZES["normal"])
@@ -231,7 +231,7 @@ class FontManager:
 
         return self.fonts[key]
 
-    def get_font_with_size(self, size: int, font_name: str = None) -> pygame.font.Font:
+    def get_font_with_size(self, size: int, font_name: str = None) -> "pygame.font.Font":
         """获取指定大小的字体"""
         font_name = self._get_effective_font_name(font_name)
 
