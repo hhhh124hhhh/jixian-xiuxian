@@ -269,7 +269,7 @@ class TestRuleEdgeCases:
         assert bonus == 10  # 没有加成
 
         effects = rule.calculate_meditation_effects(character)
-        assert effects["mp_recovery"] == 8  # 基础值
+        assert effects["mp_recovery"] == 30  # 基础值（v1 玩法：打坐回 30）
         assert effects["exp_gain"] == 3    # 基础值
 
     def test_extreme_talent_character(self):

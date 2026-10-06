@@ -10,7 +10,11 @@ from .layouts import (
     default_layout,
     BUTTON_STYLE_JADE_PLATE,
     BUTTON_STYLE_SOLID,
+    HUD_AVATAR_FILL,
     HUD_BACKDROP,
+    HUD_BAR_FILL_HP,
+    HUD_BAR_FILL_MP,
+    HUD_BAR_TRACK,
     HUD_TEXT_HP,
     HUD_TEXT_MP,
     HUD_TEXT_PRIMARY,
@@ -83,12 +87,14 @@ class ProgressBar(UIComponent):
 
     def __init__(self, position: tuple, size: tuple,
                  current_value: int = 0, max_value: int = 100,
-                 color=(0, 123, 255), bg_color=(200, 200, 200)):
+                 color=(0, 123, 255), bg_color=(200, 200, 200),
+                 border_color=(100, 100, 100)):
         super().__init__(position, size)
         self.current_value = current_value
         self.max_value = max_value
         self.color = color
         self.bg_color = bg_color
+        self.border_color = border_color
 
     def update_values(self, current: int, maximum: int):
         """更新进度条数值"""
@@ -104,7 +110,8 @@ class ProgressBar(UIComponent):
 
         # 绘制背景
         pygame.draw.rect(surface, self.bg_color, (x, y, w, h))
-        pygame.draw.rect(surface, (100, 100, 100), (x, y, w, h), 1)
+        if self.border_color is not None:
+            pygame.draw.rect(surface, self.border_color, (x, y, w, h), 1)
 
         # 绘制进度
         if self.max_value > 0:
@@ -378,23 +385,26 @@ class PygameGameInterface(GameInterface):
         )
         self.panels["info"] = info_panel
 
-        # 创建进度条
+        # 创建进度条（顶部状态条内的细进度条）
+        info_lines = self.layout.CHARACTER_INFO_LINES
         self.progress_bars["hp"] = ProgressBar(
-            (self.layout.CHARACTER_INFO_LINES["hp_line"]["bar_rect"].x,
-             self.layout.CHARACTER_INFO_LINES["hp_line"]["bar_rect"].y),
-            (self.layout.CHARACTER_INFO_LINES["hp_line"]["bar_rect"].width,
-             self.layout.CHARACTER_INFO_LINES["hp_line"]["bar_rect"].height),
-            color=theme.HP_COLOR,
-            bg_color=theme.HP_BACKGROUND
+            (info_lines["hp_line"]["bar_rect"].x,
+             info_lines["hp_line"]["bar_rect"].y),
+            (info_lines["hp_line"]["bar_rect"].width,
+             info_lines["hp_line"]["bar_rect"].height),
+            color=HUD_BAR_FILL_HP,
+            bg_color=HUD_BAR_TRACK,
+            border_color=JADE_BORDER_DIM
         )
 
         self.progress_bars["mp"] = ProgressBar(
-            (self.layout.CHARACTER_INFO_LINES["mp_line"]["bar_rect"].x,
-             self.layout.CHARACTER_INFO_LINES["mp_line"]["bar_rect"].y),
-            (self.layout.CHARACTER_INFO_LINES["mp_line"]["bar_rect"].width,
-             self.layout.CHARACTER_INFO_LINES["mp_line"]["bar_rect"].height),
-            color=theme.MP_COLOR,
-            bg_color=theme.MP_BACKGROUND
+            (info_lines["mp_line"]["bar_rect"].x,
+             info_lines["mp_line"]["bar_rect"].y),
+            (info_lines["mp_line"]["bar_rect"].width,
+             info_lines["mp_line"]["bar_rect"].height),
+            color=HUD_BAR_FILL_MP,
+            bg_color=HUD_BAR_TRACK,
+            border_color=JADE_BORDER_DIM
         )
 
         # 创建操作按钮（游戏动作）
@@ -497,16 +507,19 @@ class PygameGameInterface(GameInterface):
         else:
             self.screen.fill(theme.BACKGROUND)
 
-        # 标题横幅（有图用图，无图用文字）
+        # 标题横幅（有图用图，无图用文字），贴在顶部状态条下方
         banner = self.ui_assets.get("banner")
+        banner_rect = self.layout.TITLE_BANNER_RECT
         if banner is not None:
-            bw, bh = 420, 140
-            scaled = pygame.transform.smoothscale(banner, (bw, bh))
-            self.screen.blit(scaled, (self.width // 2 - bw // 2, 4))
+            scaled = pygame.transform.smoothscale(
+                banner, (banner_rect.width, banner_rect.height)
+            )
+            self.screen.blit(scaled, banner_rect.topleft)
         else:
             title_text = font_title.render("极简修仙 MVP", True, theme.TEXT_PRIMARY)
-            title_rect = title_text.get_rect(centerx=self.width // 2, y=10)
-            self.screen.blit(title_text, title_rect)
+            self.screen.blit(title_text, title_text.get_rect(
+                midtop=(self.width // 2, banner_rect.y + 8)
+            ))
 
         # 渲染角色信息
         self._render_character_info(game_state)
@@ -527,81 +540,159 @@ class PygameGameInterface(GameInterface):
         # 更新显示
         pygame.display.flip()
 
-    def _draw_character_backdrop(self):
-        """绘制角色状态文字底板（黑玉半透明，约 70% 不透明）
+    def _draw_hud_backdrop(self):
+        """绘制顶部通栏状态条底板（黑玉半透明 + 青玉发丝分隔线）
 
         底板与文字分离：文字画在深色底板之上，保证白色云海背景下依然清晰。
         """
-        backdrop_rect = self.layout.CHARACTER_INFO_BACKDROP_RECT
-        backdrop = pygame.Surface(backdrop_rect.size, pygame.SRCALPHA)
-        pygame.draw.rect(
+        hud_rect = self.layout.HUD_RECT
+        backdrop = pygame.Surface(hud_rect.size, pygame.SRCALPHA)
+        backdrop.fill(HUD_BACKDROP)
+        pygame.draw.line(
             backdrop,
-            HUD_BACKDROP,
-            backdrop.get_rect(),
-            border_radius=8,
+            JADE_BORDER_DIM,
+            (0, hud_rect.height - 1),
+            (hud_rect.width, hud_rect.height - 1)
         )
-        self.screen.blit(backdrop, backdrop_rect.topleft)
+        self.screen.blit(backdrop, hud_rect.topleft)
+
+    def _render_hud_avatar(self, realm: str):
+        """状态条左侧的小圆头像：纯色圆 + 境界首字（如「炼」）"""
+        avatar_rect = self.layout.CHARACTER_INFO_LINES["avatar"]["rect"]
+        center = avatar_rect.center
+        radius = avatar_rect.width // 2
+
+        pygame.draw.circle(self.screen, HUD_AVATAR_FILL, center, radius)
+        pygame.draw.circle(self.screen, JADE_BORDER, center, radius, 1)
+
+        initial = str(realm or "")[:1]
+        if not initial:
+            return
+
+        initial_surface = font_manager.get_font("normal").render(
+            initial, True, HUD_TEXT_PRIMARY
+        )
+        self.screen.blit(initial_surface, initial_surface.get_rect(center=center))
+
+    def _render_hud_text(self, text: str, font, color, left: int, center_y: int,
+                         max_width: int = 0) -> int:
+        """在状态条内按「左边界 + 垂直中线」绘制一行小字，超宽按省略号裁切
+
+        返回实际占用宽度，供同一行内的后续文字接着排。
+        """
+        if not text:
+            return 0
+
+        if max_width > 0:
+            text = self._fit_text(text, font, max_width)
+            if not text:
+                return 0
+
+        surface = font.render(text, True, color)
+        rect = surface.get_rect(midleft=(left, center_y))
+        if max_width > 0:
+            rect.width = min(rect.width, max_width)
+        self.screen.blit(surface, rect)
+        return surface.get_width()
 
     def _render_character_info(self, game_state: Dict[str, Any]):
-        """渲染角色信息"""
+        """渲染顶部状态条：头像+名字/境界 | 生命/仙力细条 | 丹药 | 连击"""
         character = game_state.get("character")
         if not character:
             return
 
-        self._draw_character_backdrop()
+        self._draw_hud_backdrop()
 
-        font = font_manager.get_font("normal")
-
-        # 格式化角色信息
-        char_info = self.renderer.format_character_info(character)
-
-        # 渲染角色基本信息
+        theme = theme_manager.get_theme()
+        name_font = font_manager.get_font("normal")
+        small_font = font_manager.get_font("small")
         info_config = self.layout.CHARACTER_INFO_LINES
 
-        # 姓名行
-        name_line = info_config["name_line"]["template"].format(
-            name=char_info.name,
-            talent=char_info.talent,
-            realm=char_info.realm,
-            exp=char_info.exp,
-            exp_threshold=char_info.exp_threshold
+        char_info = self.renderer.format_character_info(character)
+
+        # 左：圆形头像 + 「名字 · 境界」
+        self._render_hud_avatar(char_info.realm)
+
+        name_cfg = info_config["name_line"]
+        name_x, name_mid = name_cfg["pos"]
+        name_max = name_cfg.get("max_width", 0)
+        cursor = name_x
+        cursor += self._render_hud_text(
+            char_info.name,
+            name_font,
+            HUD_TEXT_PRIMARY,
+            cursor,
+            name_mid,
+            max(0, name_max - self.layout.HUD_NAME_REALM_RESERVE)
         )
-        name_surface = font.render(name_line, True, HUD_TEXT_PRIMARY)
-        self.screen.blit(name_surface, info_config["name_line"]["pos"])
-
-        # 生命值进度条和文字
-        hp_bar = self.progress_bars["hp"]
-        hp_bar.update_values(char_info.hp, char_info.max_hp)
-        hp_bar.render(self.screen)
-
-        hp_text = info_config["hp_line"]["template"].format(
-            progress_bar="",
-            current=char_info.hp,
-            max=char_info.max_hp
+        cursor += self._render_hud_text(
+            " · ", name_font, HUD_TEXT_SECONDARY, cursor, name_mid
         )
-        hp_surface = font.render(hp_text, True, HUD_TEXT_HP)
-        self.screen.blit(hp_surface, info_config["hp_line"]["pos"])
-
-        # 仙力值进度条和文字
-        mp_bar = self.progress_bars["mp"]
-        mp_bar.update_values(char_info.mp, char_info.max_mp)
-        mp_bar.render(self.screen)
-
-        mp_text = info_config["mp_line"]["template"].format(
-            progress_bar="",
-            current=char_info.mp,
-            max=char_info.max_mp
+        self._render_hud_text(
+            char_info.realm,
+            name_font,
+            JADE_TITLE,
+            cursor,
+            name_mid,
+            max(0, name_x + name_max - cursor)
         )
-        mp_surface = font.render(mp_text, True, HUD_TEXT_MP)
-        self.screen.blit(mp_surface, info_config["mp_line"]["pos"])
 
-        # 统计信息
-        stats_text = info_config["stats_line"]["template"].format(
-            pills=char_info.pills,
-            streak=char_info.meditation_streak
+        # 中：生命 / 仙力细进度条 + 数值
+        for line_key, bar_key, current, maximum in (
+            ("hp_line", "hp", char_info.hp, char_info.max_hp),
+            ("mp_line", "mp", char_info.mp, char_info.max_mp),
+        ):
+            line_cfg = info_config[line_key]
+            bar_rect = line_cfg["bar_rect"]
+            value_rect = line_cfg["value_rect"]
+
+            bar = self.progress_bars[bar_key]
+            bar.update_values(current, maximum)
+            bar.render(self.screen)
+
+            label_cfg = line_cfg.get("label")
+            if label_cfg:
+                label_surface = small_font.render(label_cfg, True, HUD_TEXT_SECONDARY)
+                self.screen.blit(label_surface, label_surface.get_rect(
+                    midleft=(line_cfg["pos"][0], bar_rect.centery)
+                ))
+
+            self._render_hud_text(
+                line_cfg["template"].format(current=current, max=maximum),
+                small_font,
+                HUD_TEXT_HP if bar_key == "hp" else HUD_TEXT_MP,
+                value_rect.x,
+                int(bar_rect.centery),
+                value_rect.width
+            )
+
+        # 中右：丹药数量 + 连击小字（连击层数 / 走火概率）
+        pills_cfg = info_config["stats_line"]
+        self._render_hud_text(
+            pills_cfg["template"].format(pills=char_info.pills),
+            small_font,
+            HUD_TEXT_SECONDARY,
+            pills_cfg["pos"][0],
+            pills_cfg["pos"][1],
+            pills_cfg.get("max_width", 0)
         )
-        stats_surface = font.render(stats_text, True, HUD_TEXT_SECONDARY)
-        self.screen.blit(stats_surface, info_config["stats_line"]["pos"])
+
+        combo_cfg = info_config["combo_line"]
+        combo_color = (
+            theme.STATUS_COLORS["warning"]
+            if game_state.get("fire_deviation_turn")
+            else JADE_TITLE
+        )
+        self._render_hud_text(
+            combo_cfg["template"].format(
+                combo=str(game_state.get("breath_combo_status") or "")
+            ),
+            small_font,
+            combo_color,
+            combo_cfg["pos"][0],
+            combo_cfg["pos"][1],
+            combo_cfg.get("max_width", 0)
+        )
 
     def _render_buttons(self, game_state: Dict[str, Any]):
         """渲染按钮"""
@@ -736,37 +827,7 @@ class PygameGameInterface(GameInterface):
         )
         self.screen.blit(status_surface, rec_pos)
 
-        # 吐纳连击小字（连击层数 / 收益倍率 / 下次走火概率），与推荐语同一行、靠状态栏按钮左侧
-        combo_status = str(game_state.get("breath_combo_status") or "")
-        if combo_status:
-            small_font = font_manager.get_font("small")
-            combo_color = (
-                theme.STATUS_COLORS["warning"]
-                if game_state.get("fire_deviation_turn")
-                else HUD_TEXT_SECONDARY
-            )
-
-            # 右边界避开状态栏按钮，左边界避开推荐语，太窄就不画
-            status_buttons = self.layout.STATUS_BUTTONS
-            right_edge = min(
-                (button["rect"].left for button in status_buttons),
-                default=self.layout.STATUS_RECT.right
-            ) - self.layout.LOG_TEXT_PADDING_X
-            available_width = (
-                right_edge - (rec_pos[0] + status_surface.get_width()) - 8
-            )
-
-            combo_text = self._fit_text(combo_status, small_font, available_width)
-            if combo_text:
-                combo_surface = small_font.render(combo_text, True, combo_color)
-                self.screen.blit(
-                    combo_surface,
-                    (
-                        right_edge - combo_surface.get_width(),
-                        rec_pos[1]
-                        + (status_surface.get_height() - combo_surface.get_height()) // 2,
-                    )
-                )
+        # 注：吐纳连击小字（连击层数 / 走火概率）已移到顶部状态条中部，此处不再重复
 
         # 渲染状态栏按钮
         for button in self.buttons[-2:]:  # 只渲染状态栏按钮
