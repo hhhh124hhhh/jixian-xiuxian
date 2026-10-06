@@ -44,11 +44,12 @@ body {
   text-shadow: 0 1px 2px rgba(255,255,255,.6);
 }
 
-/* 角色面板：panel_character.png（竖版，拉伸适配，深色内容区放文字） */
+/* 角色面板：panel_character.png 做 border-image 边框（四角不变形，边框宽跟随 border-width） */
 #char-panel {
   display: flex; gap: 10px; align-items: center;
-  background: url(../assets/panel_character.png) center / 100% 100% no-repeat;
-  padding: 26px 44px;
+  border: 30px solid transparent;
+  border-image: url(../assets/panel_character.png) 54 51 67 51 fill;
+  padding: 8px 10px;
   min-height: 148px;
   color: var(--panel-text);
 }
@@ -78,18 +79,21 @@ body {
 #combo-line.warn { color: #ff8a8a; }
 #quota-line { color: var(--panel-dim); font-size: 11px; }
 
-/* 状态栏：bar_status.png 横饰条 */
+/* 状态栏：bar_status.png 只做顶部细分隔饰条，状态文字另起一行，不再压字 */
 #status-bar {
-  background: url(../assets/bar_status.png) center / 100% 100% no-repeat;
-  min-height: 58px;
-  display: flex; align-items: center; justify-content: center;
-  gap: 14px; flex-wrap: wrap;
-  padding: 10px 56px;
-  margin: 6px 0;
+  margin: 8px 0 2px;
+  padding: 0 6px;
   font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px 14px; flex-wrap: wrap;
+}
+#status-bar::before {
+  content: ""; display: block; flex: 0 0 100%;
+  width: 100%; height: 24px;
+  background: url(../assets/bar_status.png) center / 100% 100% no-repeat;
+  margin-bottom: 2px;
 }
 #status-bar > div {
-  background: none; border: none; padding: 0;
   color: var(--ink); white-space: nowrap;
 }
 /* 潮汐图标 */
@@ -153,8 +157,9 @@ body {
 }
 #game-log {
   height: 210px; overflow-y: auto;
-  padding: 26px 52px;
-  background: url(../assets/panel_log.png) center / 100% 100% no-repeat;
+  border: 26px solid transparent;
+  border-image: url(../assets/panel_log.png) 47 51 47 70 fill;
+  padding: 6px 8px;
   font-size: 13px; line-height: 1.7; color: var(--panel-text);
   display: flex; flex-direction: column; gap: 2px;
 }
@@ -274,7 +279,9 @@ body.deviation #char-panel { animation: devPulse 1s ease-in-out 3; }
 /* 小屏适配 */
 @media (max-width: 420px) {
   .act-btn { width: 72px; height: 72px; }
-  #char-panel { padding: 22px 30px; }
-  #game-log { padding: 22px 36px; }
-  #status-bar { padding: 10px 36px; gap: 8px; }
+  #char-panel { border-width: 22px 20px 26px 20px; padding: 6px 6px; }
+  #game-log { border-width: 20px 20px 20px 26px; padding: 4px 6px; height: 190px; }
+  #status-bar { font-size: 11px; gap: 4px 8px; }
+  .bar-row label { width: 28px; }
+  .bar-text { min-width: 54px; font-size: 10px; }
 }
