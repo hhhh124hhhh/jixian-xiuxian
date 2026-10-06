@@ -36,13 +36,34 @@ TIDE_EFFECTS = [
 ]
 
 
+# 潮汐动作对应的行动名（预告文案用）
+TIDE_ACTION_LABELS = {
+    "cultivate": "修炼",
+    "meditate": "打坐"
+}
+
+
 class TideSystem:
-    """灵气潮汐系统"""
+    """灵气潮汐系统
+
+    先亮后动：达到阈值时只随机出效果并广播预兆（存进 pending，暂不生效），
+    等玩家下一次执行对应行动时，check_and_consume 才把效果结算掉。
+    """
 
     def __init__(self):
         self.action_count = 0
         self.pending = None
         self.total_triggered = 0
+
+    @staticmethod
+    def build_preview(effect: dict) -> str:
+        """预兆文案：效果描述 + 下一次对应行动生效"""
+        if not isinstance(effect, dict):
+            return ""
+
+        label = effect.get("label", "")
+        action_label = TIDE_ACTION_LABELS.get(effect.get("action"), "对应")
+        return f"{label}，下一次{action_label}行动生效"
 
     def check_and_consume(
         self,
@@ -88,7 +109,7 @@ class TideSystem:
         return None
 
     def register_action(self, result) -> Optional[dict]:
-        """登记成功动作并在达到阈值时触发潮汐。"""
+        """登记成功动作并在达到阈值时预告潮汐（效果暂存，不立即生效）"""
         if result.effects.get("level_up"):
             return None
 
@@ -101,6 +122,7 @@ class TideSystem:
 
             return {
                 "effect": dict(self.pending),
+                "preview": self.build_preview(self.pending),
                 "total": self.total_triggered
             }
 

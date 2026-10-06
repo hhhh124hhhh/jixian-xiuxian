@@ -3,8 +3,133 @@
 定义所有数值计算规则和游戏平衡参数
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Sequence
 from models import CharacterStats, RealmLevel
+
+
+# 吐纳连击（push-your-luck）平衡参数：连击是"贪一点"的主动押注，层数越高
+# 收益越猛，但走火概率也越高。所有表按下标索引，下标即当前层数。
+BREATH_COMBO_MAX = 6                              # 连击层数上限
+BREATH_COMBO_MULTIPLIERS = (1.0, 1.5, 2.2, 3.2, 4.5, 6.0, 7.0)  # 层数 -> 修炼经验倍率
+FIRE_DEVIATION_RATES = (0.0, 0.0, 0.03, 0.08, 0.15, 0.25, 0.40)  # 层数 -> 走火概率
+FIRE_DEVIATION_DURATION = 3                      # 走火后气息紊乱的持续回合数
+FIRE_DEVIATION_EXP_RATIO = 0.7                   # 紊乱期间修炼收益倍率
+FIRE_DEVIATION_COST_RATIO = 1.2                  # 紊乱期间修炼仙力消耗倍率
+
+
+class BreathComboRules:
+    """吐纳连击规则：层数倍率、走火概率与走火期修正
+
+    修炼（吐纳）成功一次叠一层，经验按当前层倍率结算；
+    每次修炼前按当前层概率 roll 走火，走火则连击清零并进入气息紊乱，
+    紊乱期间收益打折、仙力消耗上浮，靠打坐（收功）回复。
+    """
+
+    def __init__(
+        self,
+        max_combo: int = BREATH_COMBO_MAX,
+        multipliers: Sequence[float] = BREATH_COMBO_MULTIPLIERS,
+        fire_rates: Sequence[float] = FIRE_DEVIATION_RATES,
+        deviation_duration: int = FIRE_DEVIATION_DURATION,
+        deviation_exp_ratio: float = FIRE_DEVIATION_EXP_RATIO,
+        deviation_cost_ratio: float = FIRE_DEVIATION_COST_RATIO,
+    ):
+        self.max_combo = max_combo
+        self.multipliers = tuple(multipliers)
+        self.fire_rates = tuple(fire_rates)
+        self.deviation_duration = deviation_duration
+        self.deviation_exp_ratio = deviation_exp_ratio
+        self.deviation_cost_ratio = deviation_cost_ratio
+
+    def clamp_combo(self, combo: int) -> int:
+        """把连击层数收敛到 0~max_combo（存档缺字段/脏数据都不会越界）"""
+        try:
+            value = int(combo)
+        except (TypeError, ValueError):
+            value = 0
+        return max(0, min(self.max_combo, value))
+
+    def _by_combo(self, table: Sequence[float], combo: int) -> float:
+        index = min(self.clamp_combo(combo), len(table) - 1)
+        return table[index]
+
+    def get_multiplier(self, combo: int) -> float:
+        """当前连击层数对应的修炼经验倍率"""
+        return self._by_combo(self.multipliers, combo)
+
+    def get_fire_rate(self, combo: int) -> float:
+        """当前连击层数对应的走火概率"""
+        return self._by_combo(self.fire_rates, combo)
+
+    def is_deviation_active(self, fire_deviation_turn: int) -> bool:
+        """是否处于走火后的气息紊乱期"""
+        return self.clamp_turns(fire_deviation_turn) > 0
+
+    def clamp_turns(self, fire_deviation_turn: int) -> int:
+        """把走火剩余回合数收敛到 0~deviation_duration"""
+        try:
+            value = int(fire_deviation_turn)
+        except (TypeError, ValueError):
+            value = 0
+        return max(0, min(self.deviation_duration, value))
+
+    def tick_deviation(self, fire_deviation_turn: int) -> int:
+        """打坐收功：紊乱回合递减（最小 0）"""
+        return max(0, self.clamp_turns(fire_deviation_turn) - 1)
+
+    def advance_combo(self, combo: int) -> int:
+        """修炼成功：层数 +1（上限 max_combo）"""
+        return self.clamp_combo(self.clamp_combo(combo) + 1)
+
+    def trigger_deviation(self) -> int:
+        """走火：连击清零、紊乱回合刷满"""
+        return self.deviation_duration
+
+    def roll_fire_deviation(self, combo: int, roll: Optional[float] = None) -> bool:
+        """按当前层概率 roll 一次走火；roll 缺省取随机数（测试可注入）"""
+        rate = self.get_fire_rate(combo)
+        if rate <= 0:
+            return False
+        if roll is None:
+            import random
+            roll = random.random()
+        return roll < rate
+
+    def calculate_cultivate_exp(
+        self,
+        base_exp: int,
+        combo: int,
+        fire_deviation_turn: int = 0
+    ) -> int:
+        """修炼实际经验 = 基础经验 × 连击倍率 ×（紊乱期打折）"""
+        exp = float(base_exp) * self.get_multiplier(combo)
+        if self.is_deviation_active(fire_deviation_turn):
+            exp *= self.deviation_exp_ratio
+        return max(0, int(round(exp)))
+
+    def calculate_cultivate_mp_cost(
+        self,
+        base_cost: int,
+        fire_deviation_turn: int = 0
+    ) -> int:
+        """修炼实际仙力消耗 = 基础消耗 ×（紊乱期上浮）"""
+        cost = float(base_cost)
+        if self.is_deviation_active(fire_deviation_turn):
+            cost *= self.deviation_cost_ratio
+        return max(0, int(round(cost)))
+
+    def format_status(self, combo: int, fire_deviation_turn: int) -> str:
+        """状态栏文案（走火期优先显示紊乱提示）"""
+        combo = self.clamp_combo(combo)
+        turns = self.clamp_turns(fire_deviation_turn)
+        if turns > 0:
+            return f"气息紊乱（剩{turns}回合）"
+        if combo <= 0:
+            return ""
+        return (
+            f"连击{combo} · 收益×{self.get_multiplier(combo):g}"
+            f" · 走火{self.get_fire_rate(combo) * 100:g}%"
+        )
 
 
 class GameRule:
@@ -18,10 +143,10 @@ class GameRule:
             "starting_mp_ratio": 0.5,  # 初始仙力比例
         }
 
-        # 打坐规则
+        # 打坐规则（打坐即收功：回仙力、给少量经验，吐纳连击清零）
         self.meditation_rules = {
             "hp_cost": 1,
-            "base_mp_recovery": 8,
+            "base_mp_recovery": 30,
             "base_exp_gain": 3,
             "time_cost": 1,
             "consecutive_bonus_interval": 5,  # 连续奖励间隔
@@ -36,10 +161,10 @@ class GameRule:
             "consume_cost": 1,
         }
 
-        # 修炼规则
+        # 修炼规则（经验受吐纳连击倍率影响，见 BreathComboRules）
         self.cultivation_rules = {
             "mp_cost": 20,
-            "base_exp_gain": 12,
+            "base_exp_gain": 10,
             "time_cost": 2,
         }
 
@@ -286,3 +411,4 @@ class DifficultySettings:
 # 全局规则实例
 game_rules = GameRule()
 difficulty_settings = DifficultySettings()
+breath_combo_rules = BreathComboRules()

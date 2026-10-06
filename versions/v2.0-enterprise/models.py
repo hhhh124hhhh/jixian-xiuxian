@@ -192,6 +192,10 @@ class CharacterStats:
         self.meditation_streak = 0  # 连续打坐次数
         self.total_actions = 0  # 总行动次数
 
+        # 吐纳连击状态（数值规则见 rules.BreathComboRules）
+        self.breath_combo = 0  # 吐纳连击层数
+        self.fire_deviation_turn = 0  # 走火后气息紊乱剩余回合数
+
     def is_alive(self) -> bool:
         """角色是否存活"""
         return self.health.is_alive()
@@ -231,6 +235,8 @@ class CharacterStats:
             "pills": self.inventory.get_item_count("pill"),
             "meditation_streak": self.meditation_streak,
             "total_actions": self.total_actions,
+            "breath_combo": self.breath_combo,
+            "fire_deviation_turn": self.fire_deviation_turn,
             "alive": self.is_alive()
         }
 

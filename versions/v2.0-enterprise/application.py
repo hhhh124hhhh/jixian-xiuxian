@@ -444,13 +444,13 @@ class GameApplication:
         print(f"🎉 突破境界: {new_level}")
 
     def _on_tide_triggered(self, event: GameEvent):
-        """灵气潮汐触发事件处理"""
+        """灵气潮汐预兆事件处理：只预告，效果等下一次对应行动才结算"""
         effect = event.data.get("effect", {})
         label = effect.get("label", "未知潮汐")
-        tone = effect.get("tone", "buff")
-        self.ui.show_tide_triggered(effect)
-        self.game_core.game_log.add_entry(f"灵气潮汐触发：{label}")
-        print(f"灵气潮汐触发：{label}（{tone}）")
+        preview = event.data.get("preview") or ""
+        self.ui.show_tide_preview(effect, preview)
+        self.game_core.game_log.add_entry(f"灵气潮汐预兆：{preview or label}")
+        print(f"灵气潮汐预兆：{preview or label}")
 
     def _on_tide_consumed(self, event: GameEvent):
         """灵气潮汐消耗事件处理"""

@@ -8,6 +8,24 @@ import pickle
 from datetime import datetime
 
 
+# 新增状态字段的默认值：旧存档缺这些字段时按默认值补齐
+STATE_FIELD_DEFAULTS = {
+    "breath_combo": 0,
+    "fire_deviation_turn": 0
+}
+
+
+def fill_state_defaults(state: Dict[str, Any]) -> Dict[str, Any]:
+    """给缺字段的旧存档补默认值（不覆盖已有字段）"""
+    if not isinstance(state, dict):
+        return state
+
+    for field, default in STATE_FIELD_DEFAULTS.items():
+        state.setdefault(field, default)
+
+    return state
+
+
 class StateManager:
     """游戏状态管理器"""
 
@@ -27,7 +45,7 @@ class StateManager:
             self._add_to_history(self.current_state)
 
         # 更新当前状态
-        self.current_state = new_state.copy()
+        self.current_state = fill_state_defaults(new_state.copy())
 
     def get_current_state(self) -> Dict[str, Any]:
         """获取当前状态"""
@@ -106,7 +124,7 @@ class StateManager:
         """
         try:
             state_data = json.loads(state_json)
-            self.current_state = state_data
+            self.current_state = fill_state_defaults(state_data)
             return True
         except Exception as e:
             print(f"导入状态失败: {e}")
