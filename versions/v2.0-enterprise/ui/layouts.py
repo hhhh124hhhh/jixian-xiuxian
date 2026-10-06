@@ -114,12 +114,12 @@ class Layout:
 
     # 区域位置计算
     @property
-    def SCREEN_RECT(self) -> pygame.Rect:
+    def SCREEN_RECT(self) -> "pygame.Rect":
         """整个屏幕区域"""
         return pygame.Rect(0, 0, self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
 
     @property
-    def HEADER_RECT(self) -> pygame.Rect:
+    def HEADER_RECT(self) -> "pygame.Rect":
         """标题栏区域"""
         return pygame.Rect(
             self.MARGIN_LEFT,
@@ -129,12 +129,12 @@ class Layout:
         )
 
     @property
-    def HUD_RECT(self) -> pygame.Rect:
+    def HUD_RECT(self) -> "pygame.Rect":
         """顶部通栏状态条：横贯屏幕顶部的黑玉半透明细长条"""
         return pygame.Rect(0, 0, self.SCREEN_WIDTH, self.HUD_BACKDROP_HEIGHT)
 
     @property
-    def HUD_AVATAR_RECT(self) -> pygame.Rect:
+    def HUD_AVATAR_RECT(self) -> "pygame.Rect":
         """状态条左侧的圆形头像（垂直居中）"""
         size = self.HUD_AVATAR_SIZE
         return pygame.Rect(
@@ -145,17 +145,17 @@ class Layout:
         )
 
     @property
-    def INFO_RECT(self) -> pygame.Rect:
+    def INFO_RECT(self) -> "pygame.Rect":
         """角色信息区域（顶部状态条本体）"""
         return self.HUD_RECT
 
     @property
-    def CHARACTER_INFO_BACKDROP_RECT(self) -> pygame.Rect:
+    def CHARACTER_INFO_BACKDROP_RECT(self) -> "pygame.Rect":
         """角色状态底板区域（顶部状态条本体）"""
         return self.HUD_RECT
 
     @property
-    def TITLE_BANNER_RECT(self) -> pygame.Rect:
+    def TITLE_BANNER_RECT(self) -> "pygame.Rect":
         """标题横幅：贴在顶部状态条下方，水平居中"""
         rect = pygame.Rect(
             0,
@@ -167,7 +167,7 @@ class Layout:
         return rect
 
     @property
-    def TOAST_SLOT_RECT(self) -> pygame.Rect:
+    def TOAST_SLOT_RECT(self) -> "pygame.Rect":
         """顶部通知槽：顶部状态条下方、四个圆形按钮上方的专用横幅槽"""
         width = min(
             self.TOAST_BANNER_MAX_WIDTH,
@@ -183,7 +183,7 @@ class Layout:
         return rect
 
     @property
-    def ACTION_BUTTON_ROW_RECT(self) -> pygame.Rect:
+    def ACTION_BUTTON_ROW_RECT(self) -> "pygame.Rect":
         """四个圆形操作按钮的实际占位区域（正方形，与视觉/点击区域一致）"""
         size = self.ACTION_BUTTON_ICON_SIZE
         row = pygame.Rect(0, 0, size, size)
@@ -194,7 +194,7 @@ class Layout:
         return row
 
     @property
-    def BUTTON_AREA_RECT(self) -> pygame.Rect:
+    def BUTTON_AREA_RECT(self) -> "pygame.Rect":
         """操作按钮区域（位于顶部通知槽下方，避开横幅）"""
         return pygame.Rect(
             self.MARGIN_LEFT,
@@ -204,7 +204,7 @@ class Layout:
         )
 
     @property
-    def LOG_RECT(self) -> pygame.Rect:
+    def LOG_RECT(self) -> "pygame.Rect":
         """游戏日志区域"""
         return pygame.Rect(
             self.MARGIN_LEFT,
@@ -214,7 +214,7 @@ class Layout:
         )
 
     @property
-    def STATUS_RECT(self) -> pygame.Rect:
+    def STATUS_RECT(self) -> "pygame.Rect":
         """状态栏区域"""
         return pygame.Rect(
             self.MARGIN_LEFT,
@@ -224,7 +224,7 @@ class Layout:
         )
 
     @property
-    def TIDE_EFFECT_RECT(self) -> pygame.Rect:
+    def TIDE_EFFECT_RECT(self) -> "pygame.Rect":
         """灵气潮汐待生效效果区域（状态栏右侧）"""
         status = self.STATUS_RECT
         width = 280
@@ -386,7 +386,7 @@ class Layout:
             "recommendation_template": "推荐: {recommendation}"
         }
 
-    def get_toast_banner_rect(self, content_width: int, content_height: int) -> pygame.Rect:
+    def get_toast_banner_rect(self, content_width: int, content_height: int) -> "pygame.Rect":
         """按内容算出通知横幅矩形：宽 400~500、高 45~60，在通知槽内居中"""
         slot = self.TOAST_SLOT_RECT
         max_width = min(self.TOAST_BANNER_MAX_WIDTH, slot.width)
