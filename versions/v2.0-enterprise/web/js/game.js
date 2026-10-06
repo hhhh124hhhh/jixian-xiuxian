@@ -57,7 +57,7 @@ async function boot() {
     await pyodide.runPythonAsync(`
 import sys
 sys.path.insert(0, "/")
-exec(open("/web_main.py").read())
+import web_main
 `);
     setLoad(100, "完成");
     document.getElementById("loading").classList.add("hide");
@@ -228,7 +228,7 @@ document.querySelectorAll(".act-btn, .sys-btn").forEach((btn) => {
     const action = btn.dataset.action;
     console.log("[web] 点击:", action);
     try {
-      const ret = await pyodide.runPythonAsync(`do_action("${action}")`);
+      const ret = await pyodide.runPythonAsync(`web_main.do_action("${action}")`);
       console.log("[web] do_action 返回:", ret);
     } catch (e) {
       console.error("[web] do_action 失败", e);
