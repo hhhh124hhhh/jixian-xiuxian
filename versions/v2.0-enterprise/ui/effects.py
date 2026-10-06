@@ -7,6 +7,8 @@
 - 无显示设备 / 渲染异常时不抛异常，静默跳过。
 """
 
+from __future__ import annotations
+
 import math
 from typing import List, Optional, Tuple
 

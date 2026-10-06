@@ -2,6 +2,8 @@
 UI布局配置 - 定义界面元素的位置和尺寸
 """
 
+from __future__ import annotations
+
 import pygame
 
 

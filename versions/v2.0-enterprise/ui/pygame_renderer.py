@@ -2,6 +2,8 @@
 Pygame界面渲染器 - 具体的UI实现
 """
 
+from __future__ import annotations
+
 import pygame
 import sys
 from typing import Dict, Any, Optional, List
