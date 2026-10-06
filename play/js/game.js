@@ -168,14 +168,41 @@ window.playEffect = function (name, data) {
   // restart 无特效，静默
 };
 
+// ---------- Toast 通知（桌面版移植：200ms淡入 → 2.5s停留 → 300ms淡出） ----------
+window.showToast = function (message, type) {
+  const layer = document.getElementById("toast-layer");
+  if (!layer) return;
+  const el = document.createElement("div");
+  el.className = "toast" + (type ? " " + type : "");
+  el.textContent = message;
+  layer.appendChild(el);
+  // CSS 动画 3s 后移除
+  setTimeout(() => el.remove(), 3100);
+};
+
 function triggerEffects(effects) {
   effects = effects || {};
-  if (effects.level_up) window.playEffect("breakthrough", { realm: effects.new_level || "" });
-  if (effects.fire_deviation) window.playEffect("deviation", {});
+  if (effects.level_up) {
+    window.playEffect("breakthrough", { realm: effects.new_level || "" });
+    window.showToast("突破至 " + (effects.new_level || "") + "！", "good");
+  }
+  if (effects.fire_deviation) {
+    window.playEffect("deviation", {});
+    window.showToast("走火入魔！气息紊乱 3 回合", "warn");
+  }
   const eg = effects.exp_gain || 0;
   if (eg > 0) window.playEffect("exp_float", { amount: eg });
-  if (effects.demon_cleared) window.playEffect("demon_cleared", {});
-  if (effects.tribulation) window.playEffect("tribulation", { success: !!effects.tribulation_success });
+  if (effects.demon_cleared) {
+    window.playEffect("demon_cleared", {});
+    window.showToast("心魔已破！修炼加速", "good");
+  }
+  if (effects.tribulation) {
+    window.playEffect("tribulation", { success: !!effects.tribulation_success });
+    window.showToast(
+      effects.tribulation_success ? "渡劫成功！配额已刷新" : "渡劫失败……",
+      effects.tribulation_success ? "good" : "warn"
+    );
+  }
 }
 
 // ---------- 按钮 ----------
