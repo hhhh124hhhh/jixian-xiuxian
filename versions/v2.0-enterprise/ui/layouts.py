@@ -73,6 +73,7 @@ class Layout:
     HUD_VALUE_COLUMN_WIDTH = 58
     HUD_GROUP_GAP = 14               # 中部分组之间的横向间距
     HUD_PILLS_COLUMN_WIDTH = 48
+    HUD_QUOTA_ROW_INSET = 11             # 配额小字距状态条底边的距离（第二行基线）
     HUD_RESERVED_RIGHT = 110         # 右侧留空（toast 通知槽区域），不放任何内容
 
     # 边距设置
@@ -352,6 +353,15 @@ class Layout:
                 "pos": (combo_x, mid),
                 "template": "{combo}",
                 "max_width": combo_width
+            },
+            # 境界配额（玩法 v2）：丹药/修炼额度压在丹药数字下方一行，
+            # 复用状态条右半区的第二行空白，不改变原有列宽与视觉层级
+            "quota_line": {
+                "pos": (pills_x, hud.height - self.HUD_QUOTA_ROW_INSET),
+                "template": "{quota}",
+                "max_width": (
+                    self.SCREEN_WIDTH - self.HUD_CONTENT_PADDING_X - pills_x
+                )
             }
         }
 

@@ -6,7 +6,14 @@ import copy
 from typing import Dict, Any, Optional, List
 from models import CharacterStats, GameLog
 from actions import ActionFactory
-from rules import game_rules, difficulty_settings, breath_combo_rules
+from rules import (
+    game_rules,
+    difficulty_settings,
+    breath_combo_rules,
+    demon_clearing_rules,
+    realm_quota_rules,
+    tribulation_rules,
+)
 from core.event_handler import event_handler, EventType
 from core.tide_system import TideSystem
 
@@ -168,8 +175,38 @@ class GameCore:
                     }
                 )
 
-            # 灵气潮汐逻辑仅处理成功动作
-            if result.success:
+            # 渡劫结算（含「劫后余生」补偿标记）
+            if result.effects.get("tribulation"):
+                event_handler.dispatch_event(
+                    EventType.TRIBULATION_RESOLVED,
+                    {
+                        "success": result.effects.get("tribulation_success", False),
+                        "rate": result.effects.get("tribulation_rate", 0),
+                        "pills_used_in_realm": result.effects.get(
+                            "pills_used_in_realm", 0
+                        ),
+                        "exp_lost": result.effects.get("exp_lost", 0),
+                        "survival_achievement": result.effects.get(
+                            "survival_achievement", False
+                        ),
+                        "tribulation_fails": self.character.tribulation_fails,
+                        "new_level": result.effects.get("new_level"),
+                    }
+                )
+
+            # 破心魔：走火从纯惩罚变成资源
+            if result.effects.get("demon_cleared"):
+                event_handler.dispatch_event(
+                    EventType.DEMON_CLEARED,
+                    {
+                        "demon_cleared_bonus": self.character.demon_cleared_bonus,
+                        "multiplier": demon_clearing_rules.multiplier,
+                        "character_name": self.character.name,
+                    }
+                )
+
+            # 灵气潮汐逻辑仅处理成功动作（渡劫自成一套机制，不吃潮汐）
+            if result.success and not result.effects.get("tribulation"):
                 consumed = self.tide_system.check_and_consume(
                     action_name,
                     result,
@@ -244,7 +281,41 @@ class GameCore:
                 self.character.breath_combo,
                 self.character.fire_deviation_turn
             ),
+            "demon_cleared_bonus": self.character.demon_cleared_bonus,
+            "demon_cleared_status": demon_clearing_rules.format_status(
+                self.character.demon_cleared_bonus
+            ),
+            "tribulation_ready": tribulation_rules.is_available(self.character),
+            "tribulation_rate": tribulation_rules.get_success_rate(
+                self.character.pills_used_in_realm
+            ),
+            "tribulation_fails": self.character.tribulation_fails,
+            "quota_status": {
+                "pills_left": realm_quota_rules.get_pills_quota(self.character),
+                "cultivate_left": realm_quota_rules.get_cultivate_quota(self.character),
+                "pills_limit": realm_quota_rules.pills_limit,
+                "cultivate_limit": realm_quota_rules.cultivate_limit,
+                "text": realm_quota_rules.format_status(
+                    realm_quota_rules.get_pills_quota(self.character),
+                    realm_quota_rules.get_cultivate_quota(self.character)
+                ),
+                "exhausted": realm_quota_rules.is_exhausted(self.character),
+            },
+            "action_labels": self._build_action_labels(),
         }
+
+    def _build_action_labels(self) -> Dict[str, str]:
+        """动作按钮的动态文字（渡劫 / 破心魔 / 静心 / 默认名）"""
+        if not self.character:
+            return {}
+
+        labels = {}
+        for action in self.available_actions:
+            getter = getattr(action, "get_label", None)
+            if getter:
+                labels[action.name] = getter(self.character)
+
+        return labels
 
     def _check_game_over(self):
         """检查游戏是否结束"""
@@ -340,6 +411,12 @@ class GameCore:
                 "actions": self.character.total_actions,  # 备用字段名
                 "breath_combo": self.character.breath_combo,
                 "fire_deviation_turn": self.character.fire_deviation_turn,
+                # 玩法 v2 状态（旧存档缺这些字段时按默认值恢复）
+                "tribulation_fails": self.character.tribulation_fails,
+                "demon_cleared_bonus": self.character.demon_cleared_bonus,
+                "pills_quota": realm_quota_rules.get_pills_quota(self.character),
+                "cultivate_quota": realm_quota_rules.get_cultivate_quota(self.character),
+                "pills_used_in_realm": self.character.pills_used_in_realm,
                 "version": "2.0.0"
             }
 
@@ -400,6 +477,22 @@ class GameCore:
                 self.character.fire_deviation_turn = breath_combo_rules.clamp_turns(
                     save_data.get("fire_deviation_turn", character_data.get("fire_deviation_turn", 0))
                 )
+                # 玩法 v2 状态：旧存档缺字段时按默认值补齐（配额按满额、失败次数与破心魔归零）
+                self.character.tribulation_fails = max(0, int(
+                    save_data.get("tribulation_fails", character_data.get("tribulation_fails", 0)) or 0
+                ))
+                self.character.demon_cleared_bonus = demon_clearing_rules.clamp_bonus(
+                    save_data.get("demon_cleared_bonus", character_data.get("demon_cleared_bonus", 0))
+                )
+                self.character.pills_quota = realm_quota_rules.clamp_pills(
+                    save_data.get("pills_quota", character_data.get("pills_quota", realm_quota_rules.pills_limit))
+                )
+                self.character.cultivate_quota = realm_quota_rules.clamp_cultivate(
+                    save_data.get("cultivate_quota", character_data.get("cultivate_quota", realm_quota_rules.cultivate_limit))
+                )
+                self.character.pills_used_in_realm = max(0, int(
+                    save_data.get("pills_used_in_realm", character_data.get("pills_used_in_realm", 0)) or 0
+                ))
                 # 恢复总行动次数
                 total_actions = character_data.get("total_actions", 0)
                 if not total_actions:

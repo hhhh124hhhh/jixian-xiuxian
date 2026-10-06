@@ -40,6 +40,10 @@ class Theme:
         "吃丹药": (25, 135, 84),           # 绿色
         "修炼": (220, 53, 69),             # 红色
         "等待": (108, 117, 125),           # 灰色
+        # 玩法 v2 的临时按钮文字沿用原动作配色（破心魔≈打坐，静心≈吃丹药，渡劫≈修炼）
+        "破心魔": (52, 58, 64),
+        "静心": (25, 135, 84),
+        "渡劫": (220, 53, 69),
     }
 
     # 状态颜色映射
@@ -85,7 +89,12 @@ class Theme:
 
     def get_button_color(self, button_name: str, state: str = "normal") -> Tuple[int, int, int]:
         """获取按钮颜色"""
-        base_color = self.ACTION_BUTTONS.get(button_name, self.BUTTON_NORMAL)
+        # 状态文字（如「渡劫（成功率50%）」）按前缀回落到同名动作配色
+        base_color = self.ACTION_BUTTONS.get(button_name)
+        if base_color is None:
+            base_color = self.ACTION_BUTTONS.get(
+                str(button_name)[:2], self.BUTTON_NORMAL
+            )
 
         if state == "hover":
             return tuple(min(255, c + 20) for c in base_color)

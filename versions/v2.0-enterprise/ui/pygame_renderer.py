@@ -694,6 +694,25 @@ class PygameGameInterface(GameInterface):
             combo_cfg.get("max_width", 0)
         )
 
+        # 右下第二行：境界配额（丹药 X/6 · 修炼 X/12），破心魔加速时并排显示
+        quota_status = game_state.get("quota_status") or {}
+        quota_text = str(quota_status.get("text") or "")
+        demon_status = str(game_state.get("demon_cleared_status") or "")
+        if demon_status:
+            quota_text = f"{quota_text} · {demon_status}" if quota_text else demon_status
+
+        quota_cfg = info_config["quota_line"]
+        self._render_hud_text(
+            quota_cfg["template"].format(quota=quota_text),
+            small_font,
+            theme.STATUS_COLORS["warning"]
+            if quota_status.get("exhausted") or game_state.get("fire_deviation_turn")
+            else HUD_TEXT_SECONDARY,
+            quota_cfg["pos"][0],
+            quota_cfg["pos"][1],
+            quota_cfg.get("max_width", 0)
+        )
+
     def _render_buttons(self, game_state: Dict[str, Any]):
         """渲染按钮"""
         character = game_state.get("character")
@@ -722,6 +741,13 @@ class PygameGameInterface(GameInterface):
                     button_state = game_button_states[i]
                     button.enabled = button_state.enabled
                     button.visible = button_state.visible
+
+            # 按钮文字按状态改写：渡劫（成功率X%）/ 破心魔 / 静心（不新增按钮）
+            action_labels = game_state.get("action_labels") or {}
+            for button in game_buttons:
+                label = action_labels.get(button.action)
+                if label:
+                    button.text = label
 
             # 更新系统动作按钮状态
             system_button_states = self.renderer.format_system_action_buttons()
