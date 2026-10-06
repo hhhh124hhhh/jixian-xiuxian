@@ -62,16 +62,7 @@ exec(open("/web_main.py").read())
     setLoad(100, "完成");
     document.getElementById("loading").classList.add("hide");
     console.log("[web] Pyodide 启动完成");
-    // 启动 tick 定时器：每 100ms 让 Python 处理一个输入事件
-    // （替代不可靠的 asyncio 后台任务）
-    window._pyTickTimer = setInterval(async () => {
-      try {
-        await pyodide.runPythonAsync("tick()");
-      } catch (e) {
-        console.error("[web] tick 失败", e);
-      }
-    }, 100);
-    console.log("[web] tick 定时器已启动");
+    console.log("[web] 直接调用模式，无需 tick");
   } catch (e) {
     setLoad(100, "启动失败: " + e.message);
     console.error("[web] 启动失败", e);
@@ -230,11 +221,18 @@ window.playEffect = function (name, data) {
   // restart 无特效，静默
 };
 
-// ---------- JS -> Python：按钮点击入队 ----------
+// ---------- JS -> Python：按钮直接调用 do_action ----------
 document.querySelectorAll(".act-btn, .sys-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
+  btn.addEventListener("click", async () => {
     if (btn.disabled) return;
-    window.gameEvents.push({ action: btn.dataset.action });
+    const action = btn.dataset.action;
+    console.log("[web] 点击:", action);
+    try {
+      const ret = await pyodide.runPythonAsync(`do_action("${action}")`);
+      console.log("[web] do_action 返回:", ret);
+    } catch (e) {
+      console.error("[web] do_action 失败", e);
+    }
   });
 });
 
