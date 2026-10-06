@@ -33,6 +33,9 @@ from .layouts import (
     TOAST_TOTAL_MS,
 )
 from .themes import theme_manager, font_manager
+from .config import effects_config
+from .sound_manager import SoundManager
+from .effects import EffectManager, ease_out
 
 # 通知横幅的垂直内边距（使单行内容刚好撑满 TOAST_SLOT_HEIGHT）
 TOAST_BANNER_VERTICAL_PADDING = 13
@@ -40,6 +43,8 @@ TOAST_BANNER_VERTICAL_PADDING = 13
 TOAST_TONE_MARK_WIDTH = 3
 # 文本被横幅宽度裁切时保留的省略号宽度余量
 TOAST_ELLIPSIS_RESERVE = 12
+# 境界顺序，用于判断「境界提升」（重开局境界会回退，不该触发突破特效）
+REALM_ORDER = ("炼气期", "筑基期", "结丹期", "元婴期", "化神期", "飞升")
 
 
 class PygameInputHandler(InputHandler):
@@ -144,6 +149,34 @@ class Button(UIComponent):
         self.is_hovered = False
         self.is_pressed = False
         self.on_click = None
+        # 按压动画起始时刻（None 表示无动画），只影响绘制不影响布局
+        self._press_started_ms = None
+
+    def trigger_press(self) -> None:
+        """进入按压态，开始 120ms 缩放弹回动画"""
+        self.is_pressed = True
+        if effects_config.ENABLED:
+            self._press_started_ms = pygame.time.get_ticks()
+
+    def release_press(self) -> None:
+        """离开按压态，立即取消未播完的按压动画"""
+        self.is_pressed = False
+        self._press_started_ms = None
+
+    def _press_scale(self) -> float:
+        """按压缩放系数：按下瞬间 0.95，在 120ms 内缓动弹回 1.0"""
+        if not effects_config.ENABLED or self._press_started_ms is None:
+            return 1.0
+
+        elapsed = pygame.time.get_ticks() - self._press_started_ms
+        duration = effects_config.button_press_duration_ms()
+        if elapsed >= duration:
+            self._press_started_ms = None
+            return 1.0
+
+        min_scale = effects_config.button_press_min_scale()
+        ratio = ease_out(elapsed / duration)
+        return min_scale + (1.0 - min_scale) * ratio
 
     def _jade_plate_palette(self) -> dict:
         """仙侠玉牌按钮在当前交互状态下的配色"""
@@ -174,9 +207,14 @@ class Button(UIComponent):
             "text": IVORY_TEXT,
         }
 
-    def _render_jade_plate(self, surface):
+    def _render_jade_plate(self, surface, x: int = None, y: int = None,
+                            w: int = None, h: int = None):
         """绘制仙侠玉牌按钮：黑玉半透明底 + 青玉细线 1px 边框 + 米白文字"""
-        x, y, w, h = self.rect
+        rect_x, rect_y, rect_w, rect_h = self.rect
+        x = rect_x if x is None else x
+        y = rect_y if y is None else y
+        w = rect_w if w is None else w
+        h = rect_h if h is None else h
         palette = self._jade_plate_palette()
         radius = min(6, w // 4, h // 4)
 
@@ -192,16 +230,33 @@ class Button(UIComponent):
         surface.blit(text_surface, text_surface.get_rect(center=(x + w // 2, y + h // 2)))
 
     def render(self, surface):
-        """渲染按钮"""
+        """渲染按钮（按压动画只缩放绘制，不改 position/size，点击区域与布局不变）"""
         if not self.visible:
             return
 
         x, y, w, h = self.rect
+        scale = self._press_scale()
+
+        if scale >= 1.0:
+            self._render_content(surface, x, y, w, h)
+            return
+
+        # 有按压动画时先在原始尺寸的离屏表面上绘制，再整体缩放并居中贴回
+        base = pygame.Surface((max(1, w), max(1, h)), pygame.SRCALPHA)
+        self._render_content(base, 0, 0, w, h)
+        scaled_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+        surface.blit(
+            pygame.transform.smoothscale(base, scaled_size),
+            (x + (w - scaled_size[0]) // 2, y + (h - scaled_size[1]) // 2),
+        )
+
+    def _render_content(self, surface, x: int, y: int, w: int, h: int):
+        """在指定 surface 上按原始尺寸绘制按钮内容"""
         theme = theme_manager.get_theme()
 
         # 仙侠玉牌风格（右下系统按钮等无图标矩形按钮）
         if self.image is None and self.style == BUTTON_STYLE_JADE_PLATE:
-            self._render_jade_plate(surface)
+            self._render_jade_plate(surface, x, y, w, h)
             return
 
         # 选择颜色
@@ -234,7 +289,7 @@ class Button(UIComponent):
             text_rect = text_surface.get_rect(center=(x + w // 2, y + h - 14))
             pad = 4
             bg = pygame.Rect(text_rect.x - pad, text_rect.y - 2,
-                             text_rect.width + pad * 2, text_rect.height + 4)
+                             text_surface.get_width() + pad * 2, text_surface.get_height() + 4)
             bg_surf = pygame.Surface(bg.size, pygame.SRCALPHA)
             bg_surf.fill((10, 20, 25, 170))
             surface.blit(bg_surf, bg.topleft)
@@ -255,6 +310,27 @@ class Button(UIComponent):
         """处理事件"""
         if not self.enabled or not self.visible:
             return False
+
+        if event.type == pygame.MOUSEMOTION:
+            self.is_hovered = self.is_point_inside(event.pos)
+            return self.is_hovered
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if self.is_point_inside(event.pos):
+                self.trigger_press()
+                return True
+
+        elif event.type == pygame.MOUSEBUTTONUP:
+            was_pressed = self.is_pressed
+            if was_pressed and self.is_point_inside(event.pos):
+                self.release_press()
+                if self.on_click:
+                    self.on_click(self.action)
+                return True
+            self.release_press()
+
+        return False
+
 
         if event.type == pygame.MOUSEMOTION:
             self.is_hovered = self.is_point_inside(event.pos)
@@ -347,6 +423,17 @@ class PygameGameInterface(GameInterface):
         # 非阻断 toast 队列
         self.toasts = []
 
+        # 音效（缺文件/无音频设备时静音降级）与动效（默认开，可在 ui/config.py 关）
+        self.sound = SoundManager()
+        self.effects = EffectManager()
+
+        # 表现层状态快照：用来识别「境界提升 / 经验增加 / 走火」这类瞬时变化
+        self._prev_realm = None
+        self._prev_exp = None
+        self._prev_deviation_turns = 0
+        self._tribulation_ready = False
+        self._state_signals_ok = True
+
         # 事件回调
         self.on_action_selected = None
         self.on_restart_requested = None
@@ -366,6 +453,9 @@ class PygameGameInterface(GameInterface):
 
             # 加载 GPT 生成的 UI 美术资产（缺失不阻塞）
             self._load_ui_assets()
+
+            # 加载音效（缺文件/无音频设备都不阻塞，内部已做静音降级）
+            self.sound.initialize()
 
             return True
         except Exception as e:
@@ -480,6 +570,9 @@ class PygameGameInterface(GameInterface):
 
     def _on_button_click(self, action: str):
         """按钮点击回调"""
+        # 点击音 + 动作专属音效（失败/无效动作也只响点击音，不报错）
+        self._play_action_feedback(action)
+
         # 检查是否为系统动作
         if self.renderer.is_system_action(action):
             if action == "restart" and self.on_restart_requested:
@@ -491,10 +584,87 @@ class PygameGameInterface(GameInterface):
         elif self.on_action_selected:  # 游戏动作
             self.on_action_selected(action)
 
+    def _play_action_feedback(self, action: str) -> None:
+        """播放一次交互反馈：按钮点击音 + 该动作的专属音效"""
+        self.sound.play("click")
+
+        # 「修炼」按钮在经验条满时会临时变成渡劫，此时播渡劫音
+        override = "tribulation" if action == "cultivate" and self._tribulation_ready else None
+        self.sound.play_action(action, override)
+
+    def _exp_pop_anchor(self) -> tuple:
+        """经验数字跳动的落点：顶部状态条中部（生命/仙力数值右侧的空位）"""
+        info_lines = self.layout.CHARACTER_INFO_LINES
+        value_rect = info_lines["mp_line"]["value_rect"]
+        return (value_rect.right + 8, int(self.layout.HUD_RECT.centery))
+
+    def _sync_play_signals(self, game_state: Dict[str, Any]) -> None:
+        """比对前后两帧状态，把瞬时变化翻译成音效与动效
+
+        只读游戏状态、不改玩法逻辑：境界提升 -> 突破圆环+音效，
+        经验增加 -> +N 上浮，走火（紊乱回合数增加）-> 红边脉冲+音效。
+        """
+        character = game_state.get("character")
+        self._tribulation_ready = bool(game_state.get("tribulation_ready"))
+
+        if not character or not self._state_signals_ok:
+            if not character:
+                self._prev_realm = None
+                self._prev_exp = None
+                self._prev_deviation_turns = 0
+            return
+
+        try:
+            experience = getattr(character, "experience", None)
+            realm = getattr(experience, "current_realm", None)
+            realm_name = str(getattr(realm, "value", realm) or "")
+            current_exp = int(getattr(experience, "current_level_experience", 0))
+            deviation_turns = int(game_state.get("fire_deviation_turn") or 0)
+        except Exception as e:
+            # 状态结构异常时只停用表现层信号，不再逐帧重试刷屏
+            self._state_signals_ok = False
+            print(f"表现层状态同步失败（音效/动效自动降级）: {e}")
+            return
+
+        previous_realm = self._prev_realm
+        previous_exp = self._prev_exp
+
+        # 首帧只记录基线，不触发任何反馈
+        if previous_realm is not None:
+            if self._realm_index(realm_name) > self._realm_index(previous_realm):
+                # 境界提升（重开局境界回退，不会走到这里）
+                self.effects.trigger_breakthrough(
+                    (self.width // 2, self.height // 2),
+                    (self.width, self.height),
+                )
+                self.sound.play("breakthrough")
+            elif previous_exp is not None and current_exp > previous_exp:
+                self.effects.trigger_exp_gain(current_exp - previous_exp,
+                                               self._exp_pop_anchor())
+
+            if deviation_turns > self._prev_deviation_turns:
+                self.effects.trigger_deviation()
+                self.sound.play("deviation")
+
+        self._prev_realm = realm_name
+        self._prev_exp = current_exp
+        self._prev_deviation_turns = deviation_turns
+
+    @staticmethod
+    def _realm_index(realm_name: str) -> int:
+        """境界序号（未知境界返回 -1，不会被当成提升）"""
+        try:
+            return REALM_ORDER.index(realm_name)
+        except ValueError:
+            return -1
+
     def render(self, game_state: Dict[str, Any]) -> None:
         """渲染游戏状态"""
         if not self.screen:
             return
+
+        # 先比对状态变化，保证本帧就能看到本回合的突破/走火/经验反馈
+        self._sync_play_signals(game_state)
 
         theme = theme_manager.get_theme()
         font_title = font_manager.get_font("title")
@@ -536,6 +706,9 @@ class PygameGameInterface(GameInterface):
         # 非阻断 toast（灵气潮汐等）
         self.update_toasts()
         self.draw_toasts()
+
+        # 动效层（突破圆环 / 走火脉冲 / 经验跳动），永远画在最上层
+        self.effects.draw(self.screen)
 
         # 更新显示
         pygame.display.flip()
@@ -859,6 +1032,13 @@ class PygameGameInterface(GameInterface):
         for button in self.buttons[-2:]:  # 只渲染状态栏按钮
             button.render(self.screen)
 
+    def _button_at(self, position: tuple) -> Optional[Button]:
+        """找出鼠标位置命中的按钮（用于按压动画，不影响点击区域判定）"""
+        for button in self.buttons:
+            if button.visible and button.is_point_inside(position):
+                return button
+        return None
+
     def handle_input(self) -> Optional[UIEvent]:
         """处理用户输入"""
         for event in pygame.event.get():
@@ -872,12 +1052,22 @@ class PygameGameInterface(GameInterface):
                 # 处理快捷键
                 action = self.input_handler.handle_key_press(event.key)
                 if action:
+                    # 快捷键与点按钮等效：同一套点击音 + 动作音
+                    self._play_action_feedback(action)
                     return UIEvent("action", {"action": action}, pygame.time.get_ticks())
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
+                # 按下即触发按压缩放动画（120ms 弹回），点击区域仍由布局决定
+                pressed_button = self._button_at(event.pos)
+                if pressed_button is not None:
+                    pressed_button.trigger_press()
+
                 # 处理鼠标点击
                 action = self.input_handler.handle_mouse_click(event.pos)
                 if action:
+                    if pressed_button is None:
+                        # 命中的是布局里的点击区但没有对应按钮实例时，音效照常
+                        self._play_action_feedback(action)
                     return UIEvent("action", {"action": action}, pygame.time.get_ticks())
 
                 # 处理按钮事件
@@ -887,6 +1077,14 @@ class PygameGameInterface(GameInterface):
 
             elif event.type == pygame.MOUSEMOTION:
                 # 处理鼠标移动事件
+                for button in self.buttons:
+                    button.handle_event(event)
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                # 松开鼠标：结束按压态（动画未播完则立即复原）
+                released_button = self._button_at(event.pos)
+                if released_button is not None:
+                    released_button.release_press()
                 for button in self.buttons:
                     button.handle_event(event)
 
@@ -1074,6 +1272,7 @@ class PygameGameInterface(GameInterface):
     def show_tide_preview(self, effect, preview=""):
         """显示灵气潮汐预兆（先亮后动：只预告，效果等对应行动才结算）"""
         sub_message = preview or str(effect.get("label", ""))
+        self.sound.play("tide")
         self.show_toast(
             title="灵气潮汐预兆",
             sub_message=sub_message,
@@ -1081,6 +1280,7 @@ class PygameGameInterface(GameInterface):
         )
     def show_tide_consumed(self, label, tone, before, after):
         """显示灵气潮汐消耗提示"""
+        self.sound.play("tide")
         self.show_toast(
             title="潮汐已生效并消耗",
             sub_message=f"{label}｜{before} → {after}",
@@ -1293,6 +1493,8 @@ class PygameGameInterface(GameInterface):
     def shutdown(self) -> None:
         """关闭界面"""
         self.running = False
+        self.effects.clear()
+        self.sound.shutdown()
         pygame.quit()
 
     def is_running(self) -> bool:
