@@ -65,3 +65,8 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+else:
+    # 兼容 pygbag：它用 shell.source() 执行本文件，此时 __name__ 不是
+    # "__main__"，上面的分支永远不进，游戏根本不会启动。直接跑。
+    # main() 内部已区分桌面同步 / 网页异步两种主循环。
+    main()

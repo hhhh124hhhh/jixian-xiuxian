@@ -182,8 +182,10 @@ class GameApplication:
         self.running = True
 
         try:
+            _frames = 0
             while self.running:
                 self._run_frame()
+                _frames += 1
                 # 交还控制权，让浏览器重绘画布/处理事件
                 await asyncio.sleep(0)
 
@@ -547,6 +549,8 @@ def main():
         return 1
 
     # 网页版（pygbag/emscripten）走异步主循环，否则浏览器画布不刷新
+    # 注意：pygbag 已在运行事件循环中 exec 本文件，不能用 asyncio.run()
+    #（会抛 RuntimeError），改用 create_task 把游戏循环挂到现有循环上。
     if sys.platform == "emscripten":
         import asyncio
         asyncio.create_task(app.async_run())
