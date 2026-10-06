@@ -43,22 +43,28 @@ from .effects import EffectManager, ease_out
 def _K(name: str, fallback: int) -> int:
     """按键常量兼容：pygbag 的 pygame-ce wasm 版缺 pygame.constants，
     直接 getattr(pygame, ...) 会 AttributeError。用 ASCII 码回退
-    （SDL 键码与 ASCII 一致：K_1=49, K_a=97, K_ESCAPE=27, K_RETURN=13）。"""
+    （SDL 键码与 ASCII 一致：K_1=49, K_a=97, K_ESCAPE=27, K_RETURN=13）。
+    注意：只能在运行时调用（pygame.init 之后），不要在模块顶层求值。"""
     return getattr(pygame, name, fallback)
 
 
-# 按键常量（桌面 pygame 用原生值，wasm 缺失时用 ASCII 回退）
-K_1 = _K("K_1", ord("1"))
-K_2 = _K("K_2", ord("2"))
-K_3 = _K("K_3", ord("3"))
-K_4 = _K("K_4", ord("4"))
-K_r = _K("K_r", ord("r"))
-K_s = _K("K_s", ord("s"))
-K_y = _K("K_y", ord("y"))
-K_n = _K("K_n", ord("n"))
-K_ESCAPE = _K("K_ESCAPE", 27)
-K_RETURN = _K("K_RETURN", 13)
-K_KP_ENTER = _K("K_KP_ENTER", K_RETURN)
+class _Keys:
+    """按键常量惰性命名空间：_KEYS.K_1 首次访问时才求值，避免模块导入时碰 pygame。"""
+    _FALLBACKS = {
+        "K_1": ord("1"), "K_2": ord("2"), "K_3": ord("3"), "K_4": ord("4"),
+        "K_r": ord("r"), "K_s": ord("s"), "K_y": ord("y"), "K_n": ord("n"),
+        "K_ESCAPE": 27, "K_RETURN": 13,
+    }
+
+    def __getattr__(self, name: str) -> int:
+        if name == "K_KP_ENTER":
+            return _K("K_KP_ENTER", self.K_RETURN)
+        if name in self._FALLBACKS:
+            return _K(name, self._FALLBACKS[name])
+        raise AttributeError(name)
+
+
+_KEYS = _Keys()
 
 # 通知横幅的垂直内边距（使单行内容刚好撑满 TOAST_SLOT_HEIGHT）
 TOAST_BANNER_VERTICAL_PADDING = 13
@@ -76,13 +82,13 @@ class PygameInputHandler(InputHandler):
     def __init__(self, layout):
         self.layout = layout
         self.shortcuts = {
-            K_1: "meditate",
-            K_2: "consume_pill",
-            K_3: "cultivate",
-            K_4: "wait",
-            K_r: "restart",
-            K_s: "settings",  # 添加设置快捷键
-            K_ESCAPE: "quit"
+            _KEYS.K_1: "meditate",
+            _KEYS.K_2: "consume_pill",
+            _KEYS.K_3: "cultivate",
+            _KEYS.K_4: "wait",
+            _KEYS.K_r: "restart",
+            _KEYS.K_s: "settings",  # 添加设置快捷键
+            _KEYS.K_ESCAPE: "quit"
         }
 
     def handle_mouse_click(self, position: tuple) -> Optional[str]:
@@ -1069,7 +1075,7 @@ class PygameGameInterface(GameInterface):
                 return UIEvent("quit", {}, pygame.time.get_ticks())
 
             elif event.type == pygame.KEYDOWN:
-                if event.key == K_ESCAPE:
+                if event.key == _KEYS.K_ESCAPE:
                     return UIEvent("quit", {}, pygame.time.get_ticks())
 
                 # 处理快捷键
@@ -1472,7 +1478,7 @@ class PygameGameInterface(GameInterface):
         hover_no = False
         draw_dialog(hover_yes, hover_no)
 
-        keypad_enter = K_KP_ENTER
+        keypad_enter = _KEYS.K_KP_ENTER
 
         while True:
             for event in pygame.event.get():
@@ -1485,12 +1491,12 @@ class PygameGameInterface(GameInterface):
                     typed = (getattr(event, "unicode", "") or "").lower()
 
                     if (
-                        key in (K_y, K_RETURN, keypad_enter)
+                        key in (_KEYS.K_y, _KEYS.K_RETURN, keypad_enter)
                         or typed == "y"
                     ):
                         return True
 
-                    if key in (K_n, K_ESCAPE) or typed == "n":
+                    if key in (_KEYS.K_n, _KEYS.K_ESCAPE) or typed == "n":
                         return False
 
                 elif event.type == pygame.MOUSEMOTION:
