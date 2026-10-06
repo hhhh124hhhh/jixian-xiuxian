@@ -211,7 +211,7 @@ class Button(UIComponent):
             color = theme.get_button_color(self.text)
             text_color = theme.BUTTON_TEXT
 
-        # 有图标时绘制圆形图标按钮
+        # 有图标时绘制圆形图标按钮（图标+下方文字，文字不能丢）
         if self.image is not None:
             img = self.image
             if not self.enabled:
@@ -221,6 +221,17 @@ class Button(UIComponent):
             if self.is_hovered and self.enabled:
                 pygame.draw.circle(surface, (255, 235, 180),
                                    (x + w // 2, y + h // 2), w // 2 + 3, 2)
+            # 图标按钮的文字压在图标底部内部（不占布局外空间，避免被日志面板盖住）
+            font = font_manager.get_font("small")
+            text_surface = font.render(self.text, True, (255, 250, 235))
+            text_rect = text_surface.get_rect(center=(x + w // 2, y + h - 14))
+            pad = 4
+            bg = pygame.Rect(text_rect.x - pad, text_rect.y - 2,
+                             text_rect.width + pad * 2, text_rect.height + 4)
+            bg_surf = pygame.Surface(bg.size, pygame.SRCALPHA)
+            bg_surf.fill((10, 20, 25, 170))
+            surface.blit(bg_surf, bg.topleft)
+            surface.blit(text_surface, text_rect)
             return
 
         # 绘制按钮背景
