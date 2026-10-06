@@ -1,0 +1,186 @@
+/* 极简修仙 Web 版 · 国风墨玉主题 */
+:root {
+  --ink: #14161c;
+  --ink2: #1d212b;
+  --paper: #f2ede3;
+  --jade: #4fd1a5;
+  --jade-dim: #2b7a5e;
+  --gold: #d8b56b;
+  --red: #e5484d;
+  --blue: #6aa8ff;
+  --text-dim: #9aa3b2;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: radial-gradient(1200px 800px at 50% -10%, #232838 0%, var(--ink) 60%);
+  color: var(--paper);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  min-height: 100vh;
+}
+
+#app { max-width: 640px; margin: 0 auto; padding: 12px 14px 40px; position: relative; }
+
+/* 顶栏 */
+#topbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px 12px; }
+#topbar h1 { font-size: 22px; letter-spacing: 6px; color: var(--gold); font-weight: 600; }
+#turn-info { color: var(--text-dim); font-size: 13px; }
+
+/* 角色面板 */
+#char-panel {
+  display: flex; gap: 12px; align-items: center;
+  background: linear-gradient(180deg, rgba(79,209,165,.08), rgba(79,209,165,.02));
+  border: 1px solid rgba(79,209,165,.25);
+  border-radius: 12px; padding: 12px;
+}
+#avatar {
+  width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; color: var(--ink);
+  background: radial-gradient(circle at 35% 30%, #a7f3d0, var(--jade) 70%);
+  border: 2px solid var(--gold);
+}
+#char-main { flex: 1; min-width: 0; }
+#char-name-line { font-size: 16px; margin-bottom: 6px; }
+#char-name-line .dot { color: var(--text-dim); }
+#char-realm { color: var(--jade); font-weight: 600; }
+.bar-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; font-size: 12px; }
+.bar-row label { width: 32px; color: var(--text-dim); flex-shrink: 0; }
+.bar { flex: 1; height: 10px; background: rgba(255,255,255,.08); border-radius: 5px; overflow: hidden; }
+.fill { height: 100%; width: 100%; border-radius: 5px; transition: width .4s ease; }
+.fill.hp { background: linear-gradient(90deg, #e5484d, #ff7a7a); }
+.fill.mp { background: linear-gradient(90deg, #3b82f6, #6aa8ff); }
+.fill.exp { background: linear-gradient(90deg, #b8860b, var(--gold)); }
+.bar-text { font-size: 11px; color: var(--text-dim); min-width: 62px; text-align: right; }
+#char-side { text-align: right; font-size: 13px; flex-shrink: 0; }
+#pills { font-size: 15px; margin-bottom: 4px; }
+#combo-line { color: var(--jade); font-size: 12px; min-height: 16px; }
+#combo-line.warn { color: var(--red); }
+#quota-line { color: var(--text-dim); font-size: 11px; }
+
+/* 状态栏 */
+#status-bar {
+  display: flex; gap: 8px; margin: 10px 0; font-size: 12px; flex-wrap: wrap;
+}
+#status-bar > div {
+  flex: 1; min-width: 150px; padding: 8px 10px;
+  background: var(--ink2); border-radius: 8px; border: 1px solid rgba(255,255,255,.06);
+  color: var(--text-dim);
+}
+#tide-line.active { color: var(--gold); border-color: rgba(216,181,107,.4); }
+#trib-line.ready { color: var(--jade); border-color: rgba(79,209,165,.4); }
+
+/* 动作按钮 */
+#actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0 6px; }
+.act-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 14px 4px 10px; font-size: 24px;
+  background: linear-gradient(180deg, #2a3040, #20242f);
+  color: var(--paper); border: 1px solid rgba(216,181,107,.35); border-radius: 12px;
+  cursor: pointer; transition: transform .12s ease, box-shadow .12s ease;
+}
+.act-btn span { font-size: 14px; letter-spacing: 2px; }
+.act-btn:hover:not(:disabled) { border-color: var(--gold); box-shadow: 0 0 12px rgba(216,181,107,.25); }
+/* 特效1：按钮按下缩放回弹 */
+.act-btn:active:not(:disabled) { transform: scale(.92); }
+.act-btn:disabled { opacity: .35; cursor: not-allowed; }
+#sys-actions { display: flex; justify-content: center; margin-bottom: 8px; }
+.sys-btn {
+  padding: 6px 18px; font-size: 13px; background: transparent;
+  color: var(--text-dim); border: 1px solid rgba(255,255,255,.15); border-radius: 20px; cursor: pointer;
+}
+.sys-btn:active { transform: scale(.94); }
+
+/* 日志 */
+#log-panel h2 { font-size: 14px; color: var(--gold); letter-spacing: 4px; margin: 10px 0 6px; font-weight: 500; }
+#game-log {
+  height: 220px; overflow-y: auto; padding: 10px 12px;
+  background: rgba(0,0,0,.3); border-radius: 10px; border: 1px solid rgba(255,255,255,.06);
+  font-size: 13px; line-height: 1.7; display: flex; flex-direction: column; gap: 2px;
+}
+#game-log div { animation: logIn .3s ease; }
+#game-log .tide { color: var(--gold); }
+#game-log .warn { color: var(--red); }
+#game-log .good { color: var(--jade); }
+@keyframes logIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* 特效层 */
+#fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 50; overflow: hidden; }
+
+/* 特效2：突破青玉扩散圆环 */
+.fx-ring {
+  position: absolute; left: 50%; top: 32%; width: 40px; height: 40px;
+  border: 3px solid var(--jade); border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: ringExpand 1.2s ease-out forwards;
+}
+.fx-ring.r2 { animation-delay: .15s; border-color: var(--gold); }
+.fx-ring.r3 { animation-delay: .3s; }
+@keyframes ringExpand {
+  0% { width: 40px; height: 40px; opacity: .95; }
+  100% { width: 340px; height: 340px; opacity: 0; }
+}
+.fx-breakthrough-text {
+  position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%);
+  font-size: 30px; letter-spacing: 8px; color: var(--jade); font-weight: 700;
+  text-shadow: 0 0 24px rgba(79,209,165,.8);
+  animation: breakText 1.6s ease-out forwards; white-space: nowrap;
+}
+@keyframes breakText {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -70%) scale(1); }
+}
+
+/* 特效3：经验数字上浮 */
+.fx-exp {
+  position: absolute; left: 50%; top: 40%;
+  color: var(--gold); font-size: 20px; font-weight: 700;
+  text-shadow: 0 0 10px rgba(216,181,107,.7);
+  animation: expFloat 1.1s ease-out forwards; white-space: nowrap;
+}
+@keyframes expFloat {
+  0% { opacity: 0; transform: translate(-50%, 0); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -90px); }
+}
+
+/* 特效4：走火红色脉冲 */
+body.deviation #char-panel {
+  animation: devPulse 1s ease-in-out 3;
+  border-color: var(--red);
+}
+@keyframes devPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(229,72,77,0); }
+  50% { box-shadow: 0 0 28px rgba(229,72,77,.75); }
+}
+.fx-deviation-text {
+  position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%);
+  font-size: 28px; letter-spacing: 8px; color: var(--red); font-weight: 700;
+  text-shadow: 0 0 24px rgba(229,72,77,.8);
+  animation: breakText 1.6s ease-out forwards; white-space: nowrap;
+}
+
+/* 渡劫特效 */
+.fx-trib {
+  position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%);
+  font-size: 28px; letter-spacing: 6px; font-weight: 700; white-space: nowrap;
+  animation: breakText 1.8s ease-out forwards;
+}
+.fx-trib.ok { color: var(--gold); text-shadow: 0 0 24px rgba(216,181,107,.8); }
+.fx-trib.fail { color: var(--red); text-shadow: 0 0 24px rgba(229,72,77,.8); }
+
+/* 加载遮罩 */
+#loading {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+  background: radial-gradient(800px 600px at 50% 30%, #232838, var(--ink));
+  transition: opacity .5s ease;
+}
+#loading.hide { opacity: 0; pointer-events: none; }
+.load-title { font-size: 34px; letter-spacing: 12px; color: var(--gold); }
+.load-sub { font-size: 13px; color: var(--text-dim); }
+.load-bar { width: 220px; height: 6px; background: rgba(255,255,255,.1); border-radius: 3px; overflow: hidden; }
+#load-fill { height: 100%; width: 5%; background: var(--jade); border-radius: 3px; transition: width .3s ease; }
