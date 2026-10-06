@@ -232,6 +232,14 @@ document.querySelectorAll(".act-btn, .sys-btn").forEach((btn) => {
       console.log("[web] do_action 返回:", ret);
     } catch (e) {
       console.error("[web] do_action 失败", e);
+      // 诊断：把错误显示在日志区
+      const log = document.getElementById("game-log");
+      if (log) {
+        const div = document.createElement("div");
+        div.className = "log-error";
+        div.textContent = "[错误] " + e.message;
+        log.prepend(div);
+      }
     }
   });
 });
