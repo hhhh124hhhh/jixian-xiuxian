@@ -22,6 +22,16 @@ try:
     print(f"[DIAG] has Rect: {hasattr(pygame, 'Rect')}")
     print(f"[DIAG] has font: {hasattr(pygame, 'font')}")
     print(f"[DIAG] version: {getattr(pygame, 'version', 'N/A')}")
+    try:
+        import pygame.constants
+        print("[DIAG] import pygame.constants: OK")
+    except Exception as e:
+        print(f"[DIAG] import pygame.constants FAILED: {e}")
+    try:
+        import pygame.font
+        print("[DIAG] import pygame.font: OK")
+    except Exception as e:
+        print(f"[DIAG] import pygame.font FAILED: {e}")
 except Exception as e:
     print(f"[DIAG] pygame import failed: {e}")
 

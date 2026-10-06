@@ -162,7 +162,9 @@ class GameApplication:
             print("\n游戏被用户中断")
             return 130
         except Exception as e:
+            import traceback
             print(f"运行时错误: {e}")
+            traceback.print_exc()
             return 1
         finally:
             self.shutdown()
@@ -192,7 +194,9 @@ class GameApplication:
             return 0
 
         except Exception as e:
+            import traceback
             print(f"运行时错误: {e}")
+            traceback.print_exc()
             return 1
         finally:
             self.shutdown()
