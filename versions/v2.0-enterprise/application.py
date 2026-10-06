@@ -549,7 +549,8 @@ def main():
     # 网页版（pygbag/emscripten）走异步主循环，否则浏览器画布不刷新
     if sys.platform == "emscripten":
         import asyncio
-        exit_code = asyncio.run(app.async_run())
+        asyncio.create_task(app.async_run())
+        return 0
     else:
         exit_code = app.run()
     return exit_code
