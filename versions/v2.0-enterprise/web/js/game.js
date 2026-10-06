@@ -44,9 +44,11 @@ window.updateUI = function (state) {
     if (tide) {
       tideEl.textContent = "灵气潮汐：" + (tide.label || tide.preview || "有感应");
       tideEl.classList.add("active");
+      tideEl.classList.toggle("buff", tide.tone === "buff");
+      tideEl.classList.toggle("debuff", tide.tone === "debuff");
     } else {
       tideEl.textContent = "灵气潮汐：平静";
-      tideEl.classList.remove("active");
+      tideEl.classList.remove("active", "buff", "debuff");
     }
     // 渡劫
     const tribEl = document.getElementById("trib-line");
