@@ -168,7 +168,9 @@ CJK_FONT_CANDIDATES = [
 
 def resolve_cjk_font(preferred: str = None) -> str:
     """解析出本机实际存在的中文字体名，找不到返回 None"""
-    import pygame
+    # 注意：不要在此处再 import pygame（模块顶部已导入）。
+    # pygbag wasm 环境下函数级 import pygame 会触发 pygame/__init__.py
+    # 重新执行，导致 from pygame.constants import * 失败。
     candidates = []
     if preferred:
         candidates.append(preferred)
@@ -221,7 +223,8 @@ class FontManager:
                             self.size = size
                         def render(self, text, antialias, color):
                             # 返回一个简单的surface
-                            import pygame
+                            # 注意：pygame 已在模块顶部导入，此处不再重复导入
+                            # （pygbag wasm 下函数级 import 会触发重导入失败）
                             if not pygame.get_init():
                                 pygame.init()
                             return pygame.font.Font(None, size).render(text, antialias, color)
@@ -253,7 +256,7 @@ class FontManager:
                         def __init__(self, size):
                             self.size = size
                         def render(self, text, antialias, color):
-                            import pygame
+                            # pygame 已在模块顶部导入，不再重复导入
                             if not pygame.get_init():
                                 pygame.init()
                             return pygame.font.Font(None, size).render(text, antialias, color)
