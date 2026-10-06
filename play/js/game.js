@@ -18,11 +18,9 @@ const PY_FILES = [
   "actions/__init__.py",
   "actions/system_actions.py",
   "ui/interface.py",
-  "web/__init__.py",
-  "web/py/__init__.py",
-  "web/py/bridge.py",
-  "web/py/web_interface.py",
-  "web/py/web_main.py",
+  "bridge.py",
+  "web_interface.py",
+  "web_main.py",
 ];
 
 function setLoad(pct, text) {
@@ -59,7 +57,7 @@ async function boot() {
     await pyodide.runPythonAsync(`
 import sys
 sys.path.insert(0, "/")
-exec(open("/web/py/web_main.py").read())
+exec(open("/web_main.py").read())
 `);
     setLoad(100, "完成");
     document.getElementById("loading").classList.add("hide");

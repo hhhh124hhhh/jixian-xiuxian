@@ -33,7 +33,7 @@ GameInterface = _ui_iface.GameInterface
 GameStateRenderer = _ui_iface.GameStateRenderer
 UIEvent = _ui_iface.UIEvent
 
-from web.py.bridge import update_ui, pop_js_events, js_log
+from bridge import update_ui, pop_js_events, js_log
 
 
 def serialize_state(game_state: Dict[str, Any], renderer: GameStateRenderer) -> Dict[str, Any]:

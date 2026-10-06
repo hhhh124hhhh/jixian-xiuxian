@@ -11,8 +11,8 @@ for _p in ("/", os.getcwd()):
         sys.path.insert(0, _p)
 
 from core.game_core import GameCore
-from web.py.web_interface import WebInterface
-from web.py.bridge import play_effect, js_log
+from web_interface import WebInterface
+from bridge import play_effect, js_log
 
 
 def detect_effects(game: GameCore, result: dict, prev_realm: str):
