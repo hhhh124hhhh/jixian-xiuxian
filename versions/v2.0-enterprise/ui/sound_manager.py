@@ -34,7 +34,7 @@ class SoundManager:
     def __init__(self, sfx_dir: Optional[str] = None, config=None):
         self.config = config or sound_config
         self.sfx_dir = sfx_dir or self.config.resolve_sfx_dir()
-        self.sounds: Dict[str, pygame.mixer.Sound] = {}
+        self.sounds: Dict[str, "pygame.mixer.Sound"] = {}
         self.failed: List[str] = []          # 加载失败的音效名，便于排查
         self.mixer_ready = False             # mixer 是否真的可用
         self.initialized = False
