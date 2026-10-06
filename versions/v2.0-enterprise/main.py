@@ -35,6 +35,32 @@ try:
 except Exception as e:
     print(f"[DIAG] pygame import failed: {e}")
 
+# 兼容垫片：wasm 版 pygame-ce 缺 pygame.constants 子模块，
+# 但常量已直接注入 pygame 命名空间。在此创建一个垫片模块，
+# 使 `import pygame.constants` / `from pygame.constants import *`
+# / `import pygame.locals` 都能正常工作。
+try:
+    import sys as _sys
+    import types as _types
+    import pygame as _pg
+    if "pygame.constants" not in _sys.modules:
+        _shim = _types.ModuleType("pygame.constants")
+        _all = []
+        for _name in dir(_pg):
+            # 复制常量：全大写名称（如 QUIT, KEYDOWN）与 K_ 开头按键码
+            if _name.isupper() or _name.startswith("K_"):
+                try:
+                    setattr(_shim, _name, getattr(_pg, _name))
+                    _all.append(_name)
+                except Exception:
+                    pass
+        _shim.__all__ = _all
+        _sys.modules["pygame.constants"] = _shim
+        _pg.constants = _shim
+        print(f"[DIAG] pygame.constants 垫片已安装（{len(_all)} 个常量）")
+except Exception as e:
+    print(f"[DIAG] 垫片安装失败: {e}")
+
 from application import main as app_main
 
 
