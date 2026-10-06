@@ -53,7 +53,7 @@ async function boot() {
     }
 
     setLoad(85, "正在启动游戏…");
-    // 运行主入口（内含初始化 + 首屏渲染 + async 主循环）
+    // 运行主入口（内含初始化 + 首屏渲染；主循环改为 JS 定时 tick）
     await pyodide.runPythonAsync(`
 import sys
 sys.path.insert(0, "/")
@@ -62,6 +62,16 @@ exec(open("/web_main.py").read())
     setLoad(100, "完成");
     document.getElementById("loading").classList.add("hide");
     console.log("[web] Pyodide 启动完成");
+    // 启动 tick 定时器：每 100ms 让 Python 处理一个输入事件
+    // （替代不可靠的 asyncio 后台任务）
+    window._pyTickTimer = setInterval(async () => {
+      try {
+        await pyodide.runPythonAsync("tick()");
+      } catch (e) {
+        console.error("[web] tick 失败", e);
+      }
+    }, 100);
+    console.log("[web] tick 定时器已启动");
   } catch (e) {
     setLoad(100, "启动失败: " + e.message);
     console.error("[web] 启动失败", e);
