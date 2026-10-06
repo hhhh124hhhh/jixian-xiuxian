@@ -736,6 +736,38 @@ class PygameGameInterface(GameInterface):
         )
         self.screen.blit(status_surface, rec_pos)
 
+        # 吐纳连击小字（连击层数 / 收益倍率 / 下次走火概率），与推荐语同一行、靠状态栏按钮左侧
+        combo_status = str(game_state.get("breath_combo_status") or "")
+        if combo_status:
+            small_font = font_manager.get_font("small")
+            combo_color = (
+                theme.STATUS_COLORS["warning"]
+                if game_state.get("fire_deviation_turn")
+                else HUD_TEXT_SECONDARY
+            )
+
+            # 右边界避开状态栏按钮，左边界避开推荐语，太窄就不画
+            status_buttons = self.layout.STATUS_BUTTONS
+            right_edge = min(
+                (button["rect"].left for button in status_buttons),
+                default=self.layout.STATUS_RECT.right
+            ) - self.layout.LOG_TEXT_PADDING_X
+            available_width = (
+                right_edge - (rec_pos[0] + status_surface.get_width()) - 8
+            )
+
+            combo_text = self._fit_text(combo_status, small_font, available_width)
+            if combo_text:
+                combo_surface = small_font.render(combo_text, True, combo_color)
+                self.screen.blit(
+                    combo_surface,
+                    (
+                        right_edge - combo_surface.get_width(),
+                        rec_pos[1]
+                        + (status_surface.get_height() - combo_surface.get_height()) // 2,
+                    )
+                )
+
         # 渲染状态栏按钮
         for button in self.buttons[-2:]:  # 只渲染状态栏按钮
             button.render(self.screen)
@@ -952,13 +984,12 @@ class PygameGameInterface(GameInterface):
             toast_surface.set_alpha(alpha)
 
         self.screen.blit(toast_surface, banner_rect.topleft)
-    def show_tide_triggered(self, effect):
-        """显示灵气潮汐触发提示"""
+    def show_tide_preview(self, effect, preview=""):
+        """显示灵气潮汐预兆（先亮后动：只预告，效果等对应行动才结算）"""
+        sub_message = preview or str(effect.get("label", ""))
         self.show_toast(
-            title="灵气潮汐触发",
-            sub_message=(
-                f"{effect['label']}｜待生效，执行对应行动后自动消耗"
-            ),
+            title="灵气潮汐预兆",
+            sub_message=sub_message,
             tone=effect.get("tone", "buff")
         )
     def show_tide_consumed(self, label, tone, before, after):

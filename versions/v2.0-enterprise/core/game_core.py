@@ -6,7 +6,7 @@ import copy
 from typing import Dict, Any, Optional, List
 from models import CharacterStats, GameLog
 from actions import ActionFactory
-from rules import game_rules, difficulty_settings
+from rules import game_rules, difficulty_settings, breath_combo_rules
 from core.event_handler import event_handler, EventType
 from core.tide_system import TideSystem
 
@@ -191,11 +191,12 @@ class GameCore:
 
                 triggered = self.tide_system.register_action(result)
                 if triggered:
-                    # 分发潮汐触发事件
+                    # 分发潮汐预兆事件（效果暂存，等下一次对应行动才结算）
                     event_handler.dispatch_event(
                         EventType.QI_TIDE_TRIGGERED,
                         {
                             "effect": triggered["effect"],
+                            "preview": triggered["preview"],
                             "total": triggered["total"]
                         }
                     )
@@ -237,6 +238,12 @@ class GameCore:
             "tide_effect": copy.deepcopy(self.tide_system.pending)
             if self.tide_system.pending else None,
             "tide_progress": self.tide_system.action_count,
+            "breath_combo": self.character.breath_combo,
+            "fire_deviation_turn": self.character.fire_deviation_turn,
+            "breath_combo_status": breath_combo_rules.format_status(
+                self.character.breath_combo,
+                self.character.fire_deviation_turn
+            ),
         }
 
     def _check_game_over(self):
@@ -331,6 +338,8 @@ class GameCore:
                 "meditation_streak": self.character.meditation_streak,
                 "total_actions": self.character.total_actions,
                 "actions": self.character.total_actions,  # 备用字段名
+                "breath_combo": self.character.breath_combo,
+                "fire_deviation_turn": self.character.fire_deviation_turn,
                 "version": "2.0.0"
             }
 
@@ -384,6 +393,13 @@ class GameCore:
                 self.character.mana.current_mp = character_data["mp"]
                 self.character.inventory.add_item("pill", character_data["pills"] - self.character.inventory.get_item_count("pill"))
                 self.character.meditation_streak = character_data["meditation_streak"]
+                # 恢复吐纳连击状态（旧存档缺字段时按默认值 0 处理）
+                self.character.breath_combo = breath_combo_rules.clamp_combo(
+                    save_data.get("breath_combo", character_data.get("breath_combo", 0))
+                )
+                self.character.fire_deviation_turn = breath_combo_rules.clamp_turns(
+                    save_data.get("fire_deviation_turn", character_data.get("fire_deviation_turn", 0))
+                )
                 # 恢复总行动次数
                 total_actions = character_data.get("total_actions", 0)
                 if not total_actions:

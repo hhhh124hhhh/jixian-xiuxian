@@ -6,6 +6,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 from models import CharacterStats, ActionResult, Cost, GameLog
+from rules import breath_combo_rules, game_rules
 
 
 class Action(ABC):
@@ -36,7 +37,7 @@ class Action(ABC):
 
 
 class MeditateAction(Action):
-    """打坐动作"""
+    """打坐动作（收功：回仙力、吐纳连击清零、气息紊乱回合递减）"""
 
     def __init__(self):
         super().__init__("meditate", "进入冥想状态，恢复仙力并获得少量经验")
@@ -56,12 +57,20 @@ class MeditateAction(Action):
         character.apply_cost(cost)
 
         # 计算效果
-        mp_recovery = int(character.talent.get_talent_bonus(8, "meditate"))
-        exp_gain = int(character.talent.get_talent_bonus(3, "meditate"))
+        mp_recovery = game_rules.meditation_rules["base_mp_recovery"]
+        exp_gain = int(character.talent.get_talent_bonus(
+            game_rules.meditation_rules["base_exp_gain"], "meditate"
+        ))
 
         # 应用效果
         actual_mp_recovery = character.mana.restore(mp_recovery)
         breakthrough, breakthrough_msg = character.experience.add_experience(exp_gain)
+
+        # 收功：吐纳连击清零，气息紊乱回合递减
+        character.breath_combo = 0
+        character.fire_deviation_turn = breath_combo_rules.tick_deviation(
+            character.fire_deviation_turn
+        )
 
         # 更新连续打坐计数
         character.meditation_streak += 1
@@ -74,6 +83,8 @@ class MeditateAction(Action):
 
         # 构建消息
         messages = [f"你进入打坐修炼状态，恢复{actual_mp_recovery}点仙力，获得{exp_gain}点经验"]
+        if character.fire_deviation_turn > 0:
+            messages.append(f"气息紊乱尚余{character.fire_deviation_turn}回合")
         if breakthrough:
             messages.append(breakthrough_msg)
         if pill_bonus > 0:
@@ -168,28 +179,60 @@ class ConsumePillAction(Action):
 
 
 class CultivateAction(Action):
-    """修炼功法动作"""
+    """修炼功法动作（吐纳连击：成功叠层，修炼前按当前层概率 roll 走火）"""
 
     def __init__(self):
         super().__init__("cultivate", "运转心法，大量提升修为")
 
     def get_cost(self) -> Cost:
-        return Cost(mp=20, time=2)  # 消耗仙力和时间
+        cultivation_rules = game_rules.cultivation_rules
+        return Cost(
+            mp=cultivation_rules["mp_cost"],
+            time=cultivation_rules["time_cost"]
+        )  # 消耗仙力和时间
+
+    def get_cost_for(self, character: CharacterStats) -> Cost:
+        """当前状态下的实际消耗（走火紊乱期仙力消耗上浮）"""
+        base_cost = self.get_cost()
+        return Cost(
+            hp=base_cost.hp,
+            mp=breath_combo_rules.calculate_cultivate_mp_cost(
+                base_cost.mp, character.fire_deviation_turn
+            ),
+            pills=base_cost.pills,
+            time=base_cost.time
+        )
 
     def can_execute(self, character: CharacterStats) -> bool:
         return (character.is_alive() and
-                character.mana.current_mp >= self.get_cost().mp)
+                character.mana.current_mp >= self.get_cost_for(character).mp)
 
     def execute(self, character: CharacterStats, game_log: GameLog) -> ActionResult:
         if not self.can_execute(character):
             return ActionResult(False, self.get_failure_message(character), {}, {})
 
-        # 应用消耗
-        cost = self.get_cost()
+        # 消耗按本次行动开始前的紊乱状态计算
+        cost = self.get_cost_for(character)
         character.apply_cost(cost)
 
-        # 计算效果（资质主要影响修炼效率）
-        exp_gain = int(character.talent.get_talent_bonus(12, "cultivate"))
+        # 修炼前先 roll 走火：走火则本次无经验、连击清零并进入气息紊乱
+        combo_before = character.breath_combo
+        deviated = breath_combo_rules.roll_fire_deviation(combo_before)
+
+        if deviated:
+            character.breath_combo = 0
+            character.fire_deviation_turn = breath_combo_rules.trigger_deviation()
+            exp_gain = 0
+            multiplier = breath_combo_rules.get_multiplier(combo_before)
+        else:
+            # 收益按本次修炼开始时的层数倍率结算，随后叠一层
+            exp_gain = breath_combo_rules.calculate_cultivate_exp(
+                game_rules.cultivation_rules["base_exp_gain"],
+                combo_before,
+                character.fire_deviation_turn
+            )
+            multiplier = breath_combo_rules.get_multiplier(combo_before)
+            character.breath_combo = breath_combo_rules.advance_combo(combo_before)
 
         # 应用效果
         breakthrough, breakthrough_msg = character.experience.add_experience(exp_gain)
@@ -198,7 +241,21 @@ class CultivateAction(Action):
         character.meditation_streak = 0
 
         # 构建消息
-        messages = [f"你运转心法，修为精进，获得{exp_gain}点经验"]
+        if deviated:
+            messages = [
+                f"气息走火！你连吐纳的{multiplier:g}倍收益尽数散去，"
+                f"进入气息紊乱（{character.fire_deviation_turn}回合）"
+            ]
+        else:
+            messages = [
+                f"你运转心法，修为精进，获得{exp_gain}点经验"
+                f"（连击{combo_before}→{character.breath_combo}，收益×{multiplier:g}）"
+            ]
+            if breath_combo_rules.is_deviation_active(character.fire_deviation_turn):
+                messages.append(
+                    f"气息紊乱中，本次仙力消耗×{breath_combo_rules.deviation_cost_ratio:g}、"
+                    f"收益×{breath_combo_rules.deviation_exp_ratio:g}"
+                )
         if breakthrough:
             messages.append(breakthrough_msg)
 
@@ -207,7 +264,12 @@ class CultivateAction(Action):
         game_log.add_entry(log_message)
 
         # 构建返回结果
-        effects = {"exp_gain": exp_gain}
+        effects = {
+            "exp_gain": exp_gain,
+            "breath_combo": character.breath_combo,
+            "fire_deviation_turn": character.fire_deviation_turn,
+            "fire_deviation": deviated
+        }
         costs = {"mp": cost.mp, "time": cost.time}
 
         # 添加等级提升信息
@@ -220,7 +282,7 @@ class CultivateAction(Action):
     def get_failure_message(self, character: CharacterStats) -> str:
         if not character.is_alive():
             return "你已经无法行动"
-        elif character.mana.current_mp < self.get_cost().mp:
+        elif character.mana.current_mp < self.get_cost_for(character).mp:
             return "仙力不足，无法修炼"
         return "无法修炼"
 

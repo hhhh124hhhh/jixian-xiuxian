@@ -623,6 +623,15 @@ class LoadGameAction(SystemAction):
                     character.meditation_streak = character_data["meditation_streak"]
                     character.total_actions = character_data["total_actions"]
 
+                    # 恢复吐纳连击状态（旧存档缺字段时按默认值 0 处理）
+                    from rules import breath_combo_rules
+                    character.breath_combo = breath_combo_rules.clamp_combo(
+                        character_data.get("breath_combo", 0)
+                    )
+                    character.fire_deviation_turn = breath_combo_rules.clamp_turns(
+                        character_data.get("fire_deviation_turn", 0)
+                    )
+
                     # 丹药只保存了数量，按存档数量与当前数量的差值补回
                     inventory = getattr(app_context.game_core, "inventory", None)
                     if inventory is None:
