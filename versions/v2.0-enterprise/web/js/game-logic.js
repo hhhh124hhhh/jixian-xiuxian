@@ -17,14 +17,10 @@
   const DEVIATION_EXP_RATIO = 0.7;
   const DEVIATION_COST_RATIO = 1.2;
 
-  const TRIB_BASE_RATE = 0.50;
-  const TRIB_PILL_STEP = 0.17;
   const TRIB_MAX_RATE = 1.0;
-  const TRIB_EXP_LOSS_RATIO = 0.5;
   const TRIB_SURVIVAL_LIMIT = 2;
   const TRIB_SURVIVAL_EXP = 10;
 
-  const PILLS_QUOTA = 6;
   const CULTIVATE_QUOTA = 12;
   const QUOTA_EXHAUSTED_MSG = "配额已用完，渡劫后刷新";
 
@@ -47,6 +43,34 @@
     hard: { talentMin: 1, talentMax: 6, pills: 0 },
   };
 
+  // ---------- 数值配置（所有平衡数值集中于此，逻辑层不写死） ----------
+  const BALANCE = {
+    player: { maxHp: 100, maxMp: 100 },
+    lifespan: { "炼气期": 60, "筑基期": 100, "结丹期": 140, "元婴期": 180, "化神期": 220 },
+    lifespanWarn: { aging: 20, dying: 10 },
+    combo: {
+      deviationDamage: [0, 10, 15, 25, 35, 50, 70],
+    },
+    meditate: { hp: 15, mp: 30 },
+    wait: { hp: 8, mp: 3 },
+    pill: { hp: 40, mp: 30, quota: 6 },
+    tribulation: { baseRate: 0.50, pillRateStep: 0.10, maxPills: 3, successHeal: 20, failHpLoss: 60, failExpLossRatio: 0.30 },
+    wounded: { threshold: 30, extraDamage: 10 },
+  };
+
+  const DEATH_EPITAPHS = {
+    deviation: "贪一息之功，损百年道行。",
+    tribulation: "雷劫之下，终差一线。",
+    lifespan: "大限已至，坐化于蒲团之上。",
+    demon: "心魔未除，道躯先灭。",
+  };
+
+  // 旧常量保留（外部可能引用），取值改由 BALANCE 派生，避免两处数字打架
+  const PILLS_QUOTA = BALANCE.pill.quota;
+  const TRIB_BASE_RATE = BALANCE.tribulation.baseRate;
+  const TRIB_PILL_STEP = BALANCE.tribulation.pillRateStep;
+  const TRIB_EXP_LOSS_RATIO = BALANCE.tribulation.failExpLossRatio;
+
   // ---------- 小工具 ----------
   function clampInt(v, lo, hi) {
     v = parseInt(v, 10);
@@ -67,32 +91,54 @@
   function clampCombo(c) { return clampInt(c, 0, BREATH_COMBO_MAX); }
   function comboMult(c) { return BREATH_MULTIPLIERS[clampCombo(c)]; }
   function fireRate(c) { return FIRE_RATES[clampCombo(c)]; }
+  // 走火阶梯伤害：气血见底（重伤）时额外加重
+  function deviationDamage(combo, ch) {
+    let dmg = BALANCE.combo.deviationDamage[clampCombo(combo)] || 0;
+    if (ch && ch.hp <= BALANCE.wounded.threshold) dmg += BALANCE.wounded.extraDamage;
+    return dmg;
+  }
   function tribRate(pillsUsed) {
-    const p = Math.max(0, parseInt(pillsUsed, 10) || 0);
-    return Math.round(Math.min(TRIB_MAX_RATE, TRIB_BASE_RATE + TRIB_PILL_STEP * p) * 100) / 100;
+    const raw = Math.max(0, parseInt(pillsUsed, 10) || 0);
+    const p = Math.min(raw, BALANCE.tribulation.maxPills);
+    return Math.round(Math.min(TRIB_MAX_RATE, BALANCE.tribulation.baseRate + BALANCE.tribulation.pillRateStep * p) * 100) / 100;
   }
   function tribRatePct(pillsUsed) { return Math.round(tribRate(pillsUsed) * 100); }
 
   // ---------- 角色 ----------
   function createCharacter(name, difficulty) {
     const d = DIFFICULTIES[difficulty] || DIFFICULTIES.normal;
+    const life = lifespanMaxFor({ realmIndex: 0 });
     return {
       name: name || "无名修士",
-      maxHp: 100, hp: 100,
-      maxMp: 100, mp: 50,
+      maxHp: BALANCE.player.maxHp, hp: BALANCE.player.maxHp,
+      maxMp: BALANCE.player.maxMp, mp: 50,
       talent: randInt(d.talentMin, d.talentMax),
       pills: d.pills,
       expTotal: 0, expCurrent: 0, realmIndex: 0,
       meditationStreak: 0, totalActions: 0,
       breathCombo: 0, fireDeviationTurn: 0,
       tribulationFails: 0, demonClearedBonus: 0,
-      pillsQuota: PILLS_QUOTA, cultivateQuota: CULTIVATE_QUOTA,
+      pillsQuota: BALANCE.pill.quota, cultivateQuota: CULTIVATE_QUOTA,
       pillsUsedInRealm: 0,
+      lifespan: life, lifespanMax: life,
+      deathCause: null, maxCombo: 0,
     };
   }
 
   function isAlive(ch) { return ch.hp > 0; }
   function realmName(ch) { return REALMS[ch.realmIndex]; }
+  // 当前境界的寿元上限（飞升无对应表项，沿用最高一档）
+  function lifespanMaxFor(ch) {
+    const byRealm = BALANCE.lifespan[realmName(ch)];
+    if (byRealm != null) return byRealm;
+    const names = Object.keys(BALANCE.lifespan);
+    return BALANCE.lifespan[names[names.length - 1]];
+  }
+  // 突破后刷新寿元到新境界上限
+  function refreshLifespan(ch) {
+    ch.lifespanMax = lifespanMaxFor(ch);
+    ch.lifespan = ch.lifespanMax;
+  }
   function realmThreshold(ch) { return REALM_THRESHOLDS[ch.realmIndex]; }
   function isExpFull(ch) {
     return ch.realmIndex < REALMS.length - 1 && ch.expCurrent >= REALM_THRESHOLDS[ch.realmIndex];
@@ -121,6 +167,7 @@
     if (ch.expCurrent >= threshold && ch.realmIndex < REALMS.length - 1) {
       ch.realmIndex += 1;
       ch.expCurrent = ch.expCurrent - threshold;
+      refreshLifespan(ch);
       return { leveled: true, msg: "突破至 " + REALMS[ch.realmIndex] + "！" };
     }
     return { leveled: false, msg: null };
@@ -146,7 +193,7 @@
     return "破心魔×" + fmtG(DEMON_MULTIPLIER) + "（剩" + b + "次）";
   }
   function quotaText(ch) {
-    return "丹药 " + ch.pillsQuota + "/" + PILLS_QUOTA +
+    return "丹药 " + ch.pillsQuota + "/" + BALANCE.pill.quota +
       " · 修炼 " + ch.cultivateQuota + "/" + CULTIVATE_QUOTA;
   }
 
@@ -220,13 +267,13 @@
   function meditateCan(ch) { return isAlive(ch); }
   function meditateLabel(ch) { return ch.fireDeviationTurn > 0 ? "破心魔" : "打坐"; }
   function doMeditate(ch, log) {
-    ch.hp = Math.max(0, ch.hp - 1);
     ch.totalActions += 1;
     const demonCleared = ch.fireDeviationTurn > 0;
-    const mpRecovery = 30;
+    const mpRecovery = BALANCE.meditate.mp;
     let expGain = talentBonus(3, ch.talent, "meditate");
     const expFull = isExpFull(ch);
     if (expFull) expGain = 0;
+    const actualHp = restoreHp(ch, BALANCE.meditate.hp);
     const actualMp = restoreMp(ch, mpRecovery);
     let leveled = false, levelMsg = null, newLevel = null;
     if (!expFull) {
@@ -244,7 +291,7 @@
     let pillBonus = 0;
     if (ch.meditationStreak % 5 === 0) { ch.pills += 1; pillBonus = 1; }
 
-    const msgs = ["你进入打坐修炼状态，恢复" + actualMp + "点仙力，获得" + expGain + "点经验"];
+    const msgs = ["你进入打坐修炼状态，恢复" + actualHp + "点气血和" + actualMp + "点仙力，获得" + expGain + "点经验"];
     if (expFull) msgs.push("经验已满，修为暂存，等你渡劫");
     if (demonCleared) msgs.push("破心魔！气息紊乱尽消，接下来" + DEMON_BONUS_USES + "次修炼收益×" + fmtG(DEMON_MULTIPLIER));
     else if (ch.fireDeviationTurn > 0) msgs.push("气息紊乱尚余" + ch.fireDeviationTurn + "回合");
@@ -253,11 +300,11 @@
     const message = msgs.join("，");
     log.push(message);
     const effects = {
-      mp_recovery: actualMp, exp_gain: expGain, pill_bonus: pillBonus,
+      hp_recovery: actualHp, mp_recovery: actualMp, exp_gain: expGain, pill_bonus: pillBonus,
       demon_cleared: demonCleared, demon_cleared_bonus: ch.demonClearedBonus,
     };
     if (leveled) { effects.level_up = true; effects.new_level = newLevel; }
-    return { success: true, message: message, effects: effects, costs: { hp: 1, time: 1 } };
+    return { success: true, message: message, effects: effects, costs: { time: 1 } };
   }
   function meditateFail(ch) { return "无法执行进入冥想状态，恢复仙力并获得少量经验"; }
 
@@ -269,8 +316,8 @@
     const calming = ch.fireDeviationTurn > 0;
     ch.pills -= 1;
     ch.totalActions += 1;
-    const hpRecovery = talentBonus(15, ch.talent, "pill");
-    const mpRecovery = talentBonus(15, ch.talent, "pill");
+    const hpRecovery = talentBonus(BALANCE.pill.hp, ch.talent, "pill");
+    const mpRecovery = talentBonus(BALANCE.pill.mp, ch.talent, "pill");
     let expGain = talentBonus(5, ch.talent, "pill");
     const expFull = isExpFull(ch);
     if (expFull) expGain = 0;
@@ -292,7 +339,7 @@
     if (expFull) msgs.push("经验已满，修为暂存，等你渡劫");
     if (calming) msgs.push("气息紊乱已平，连击散去（无加速）");
     if (leveled) msgs.push(levelMsg);
-    msgs.push("丹药 " + ch.pillsQuota + "/" + PILLS_QUOTA);
+    msgs.push("丹药 " + ch.pillsQuota + "/" + BALANCE.pill.quota);
     const message = msgs.join("，") + "。";
     log.push(message);
     const effects = {
@@ -333,7 +380,11 @@
     const deviated = Math.random() < fireRate(comboBefore);
     const demonActive = clampInt(ch.demonClearedBonus, 0, DEMON_BONUS_USES) > 0;
     let expGain, multiplier = comboMult(comboBefore);
+    let deviationDmg = 0;
     if (deviated) {
+      deviationDmg = deviationDamage(comboBefore, ch);
+      ch.hp = Math.max(0, ch.hp - deviationDmg);
+      if (!isAlive(ch)) ch.deathCause = "deviation";
       ch.breathCombo = 0;
       ch.fireDeviationTurn = DEVIATION_DURATION;
       expGain = 0;
@@ -343,6 +394,7 @@
       if (demonActive) expGain *= DEMON_MULTIPLIER;
       expGain = Math.max(0, Math.round(expGain));
       ch.breathCombo = clampCombo(comboBefore + 1);
+      ch.maxCombo = Math.max(ch.maxCombo, ch.breathCombo);
       if (expGain > 0) ch.demonClearedBonus = Math.max(0, ch.demonClearedBonus - 1);
     }
     const r = addExperience(ch, expGain);
@@ -354,6 +406,7 @@
     const msgs = [];
     if (deviated) {
       msgs.push("气息走火！你连吐纳的" + fmtG(multiplier) + "倍收益尽数散去，进入气息紊乱（" + ch.fireDeviationTurn + "回合）");
+      msgs.push("走火反噬，损失" + deviationDmg + "点气血");
     } else {
       msgs.push("你运转心法，修为精进，获得" + expGain + "点经验（连击" + comboBefore + "→" + ch.breathCombo + "，收益×" + fmtG(multiplier) + "）");
       if (ch.fireDeviationTurn > 0) msgs.push("气息紊乱中，本次仙力消耗×" + fmtG(DEVIATION_COST_RATIO) + "、收益×" + fmtG(DEVIATION_EXP_RATIO));
@@ -366,6 +419,7 @@
     const effects = {
       exp_gain: expGain, breath_combo: ch.breathCombo,
       fire_deviation_turn: ch.fireDeviationTurn, fire_deviation: deviated,
+      deviation_damage: deviationDmg,
       demon_cleared_bonus: ch.demonClearedBonus, cultivate_quota_left: ch.cultivateQuota,
     };
     if (leveled) { effects.level_up = true; effects.new_level = newLevel; }
@@ -386,26 +440,35 @@
       const prevRealm = realmName(ch);
       ch.realmIndex += 1;
       ch.expCurrent = 0;
-      ch.pillsQuota = PILLS_QUOTA;
+      ch.pillsQuota = BALANCE.pill.quota;
       ch.cultivateQuota = CULTIVATE_QUOTA;
       ch.pillsUsedInRealm = 0;
+      refreshLifespan(ch);
+      const healed = restoreHp(ch, BALANCE.tribulation.successHeal);
       msgs.push("雷劫加身，你自" + prevRealm + "突破至" + realmName(ch) + "！");
-      msgs.push("境界配额已刷新（丹药 " + ch.pillsQuota + "/" + PILLS_QUOTA + " · 修炼 " + ch.cultivateQuota + "/" + CULTIVATE_QUOTA + "）");
+      msgs.push("境界配额已刷新（丹药 " + ch.pillsQuota + "/" + BALANCE.pill.quota + " · 修炼 " + ch.cultivateQuota + "/" + CULTIVATE_QUOTA + "）");
+      msgs.push("天劫余韵洗练筋骨，恢复" + healed + "点气血");
+      msgs.push("寿元重续 " + ch.lifespanMax + " 年");
       effects.level_up = true;
       effects.new_level = realmName(ch);
       effects.pills_quota_left = ch.pillsQuota;
       effects.cultivate_quota_left = ch.cultivateQuota;
+      effects.hp_recovery = healed;
     } else {
-      const penalty = Math.floor(ch.expCurrent * TRIB_EXP_LOSS_RATIO);
+      const lostHp = Math.min(ch.hp, BALANCE.tribulation.failHpLoss);
+      ch.hp = Math.max(0, ch.hp - BALANCE.tribulation.failHpLoss);
+      if (!isAlive(ch)) ch.deathCause = "tribulation";
+      const penalty = Math.floor(ch.expCurrent * BALANCE.tribulation.failExpLossRatio);
       const lost = spendRealmExp(ch, penalty);
       ch.tribulationFails = Math.max(0, ch.tribulationFails + 1);
-      msgs.push("雷劫加身，道基受损，损失" + lost + "点当前境界经验（-50%）");
+      msgs.push("雷劫加身，道基受损，折损" + lostHp + "点气血，损失" + lost + "点当前境界经验（-" + fmtG(BALANCE.tribulation.failExpLossRatio * 100) + "%）");
       const comp = ch.tribulationFails <= TRIB_SURVIVAL_LIMIT ? TRIB_SURVIVAL_EXP : 0;
       if (comp > 0) {
         addExperience(ch, comp);
         msgs.push("成就「劫后余生」（第" + ch.tribulationFails + "次劫）：心有所悟，补回" + comp + "点经验");
       }
       effects.exp_lost = lost;
+      effects.hp_lost = lostHp;
       effects.tribulation_fails = ch.tribulationFails;
       effects.survival_achievement = comp > 0;
       effects.comp_exp = comp;
@@ -425,17 +488,17 @@
 
   function waitCan(ch) { return isAlive(ch); }
   function doWait(ch, log) {
-    ch.hp = Math.max(0, ch.hp - 1);
     ch.totalActions += 1;
-    const actualHp = restoreHp(ch, 2);
-    const actualMp = restoreMp(ch, 3);
+    const actualHp = restoreHp(ch, BALANCE.wait.hp);
+    const actualMp = restoreMp(ch, BALANCE.wait.mp);
+    ch.breathCombo = 0;
     ch.meditationStreak = 0;
     const message = "你静心等待，恢复" + actualHp + "点生命和" + actualMp + "点仙力。";
     log.push(message);
     return {
       success: true, message: message,
       effects: { hp_recovery: actualHp, mp_recovery: actualMp },
-      costs: { hp: 1, time: 1 },
+      costs: { time: 1 },
     };
   }
 
@@ -483,6 +546,9 @@
         }
         const result = a.do(ch, this.log);
 
+        // 寿元：每成功行动折寿一年
+        if (result.success) ch.lifespan = Math.max(0, ch.lifespan - 1);
+
         // 潮汐：仅成功且非渡劫的动作
         if (result.success && !result.effects.tribulation) {
           const consumed = tideCheckAndConsume(this.tide, actionName, result, ch);
@@ -505,7 +571,12 @@
         if (!ch) return;
         if (!isAlive(ch)) {
           this.isGameOver = true;
-          this.log.push("修炼失败，游戏结束。");
+          ch.deathCause = ch.deathCause || "deviation";
+          this.log.push("你身死道消，仙途终结。");
+        } else if (ch.lifespan <= 0) {
+          this.isGameOver = true;
+          ch.deathCause = "lifespan";
+          this.log.push("寿元耗尽，你寿终坐化。");
         } else if (realmName(ch) === "飞升") {
           this.isGameOver = true;
           this.log.push("恭喜！你已成功飞升，达成完美结局！");
@@ -523,6 +594,10 @@
           exp_threshold: realmThreshold(ch),
           pills: ch.pills, total_actions: ch.totalActions,
           talent: ch.talent, alive: isAlive(ch),
+          lifespan: ch.lifespan, lifespan_max: ch.lifespanMax,
+          lifespan_warn: ch.lifespan <= BALANCE.lifespanWarn.dying ? "dying"
+            : (ch.lifespan <= BALANCE.lifespanWarn.aging ? "aging" : "normal"),
+          deathCause: ch.deathCause, max_combo: ch.maxCombo,
         };
         const buttons = ["meditate", "consume_pill", "cultivate", "wait"].map(function (id) {
           const a = ACTIONS[id];
@@ -547,6 +622,8 @@
           breath_combo: ch.breathCombo,
           breath_combo_status: comboStatus(ch),
           fire_deviation_turn: ch.fireDeviationTurn,
+          fire_rate: fireRate(ch.breathCombo),
+          deviation_damage: deviationDamage(ch.breathCombo, ch),
           demon_cleared_status: demonStatus(ch),
           quota: { text: quotaText(ch) },
           tribulation: {
@@ -567,10 +644,13 @@
   const api = {
     createGame: createGame,
     REALMS: REALMS,
+    DEATH_EPITAPHS: DEATH_EPITAPHS,
     // 供测试用的内部规则
     _rules: {
       tribRate: tribRate, tribRatePct: tribRatePct,
       comboMult: comboMult, fireRate: fireRate,
+      deviationDamage: deviationDamage, lifespanMaxFor: lifespanMaxFor,
+      BALANCE: BALANCE,
       PILLS_QUOTA: PILLS_QUOTA, CULTIVATE_QUOTA: CULTIVATE_QUOTA,
     },
   };

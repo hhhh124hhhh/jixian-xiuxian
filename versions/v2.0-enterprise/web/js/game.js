@@ -68,11 +68,18 @@ const game = GameLogic.createGame();
 let S = game.getState();          // 缓存的最新状态（开始页时角色为空）
 let lastLogLen = 0;
 
+// 死亡结算：死因文案 + 墓志铭（墓志铭来自逻辑层 DEATH_EPITAPHS）
+const DEATH_EPITAPHS = GameLogic.DEATH_EPITAPHS || {};
+const DEATH_CAUSE_LABELS = {
+  deviation: "走火而亡", tribulation: "渡劫身陨",
+  lifespan: "寿终坐化", demon: "心魔反噬",
+};
+
 /* ================= 界面状态机：start | play | gameover ================= */
 let screen = "start";
 const stats = { expTotal: 0, breakthroughs: 0, tribSuccess: 0, tribFail: 0 };
 function resetStats() { stats.expTotal = 0; stats.breakthroughs = 0; stats.tribSuccess = 0; stats.tribFail = 0; }
-let over = { win: true, realm: "--", rounds: 0 };   // 结算页快照（仅飞升胜利）
+let over = { win: true, realm: "--", rounds: 0, deathCause: null, maxCombo: 0, epitaph: "" };
 function newRun() {
   game.init("无名修士", "normal");
   S = game.getState();
@@ -244,6 +251,12 @@ function drawHUD() {
   ctx.fillStyle = C.dim; ctx.font = F(13);
   ctx.fillText(fitText((S.quota && S.quota.text) || "", 170, F(13)), 470, 30);
   ctx.fillText("资质 " + (c.talent || "--"), 470, 54);
+  // 寿元（normal/aging/dying 三档配色，大限将至追加警示语）
+  const warn = c.lifespan_warn || "normal";
+  ctx.fillStyle = warn === "dying" ? C.red : (warn === "aging" ? C.gold : C.dim);
+  const lifeTxt = "寿元 " + (c.lifespan || 0) + "/" + (c.lifespan_max || "--") +
+    (warn === "dying" ? " · 大限将至" : "");
+  ctx.fillText(fitText(lifeTxt, 180, F(13)), 560, 54);
 
   // 右上：回合 + 重开
   ctx.fillStyle = C.dim; ctx.font = F(14); ctx.textAlign = "right";
@@ -307,9 +320,25 @@ function drawButtons(t) {
     }
     ctx.restore();
     // 标签
+    const labelY = def.cy + R + 24;
     ctx.fillStyle = enabled ? C.cream : "rgba(157,184,176,0.6)";
     ctx.font = F(16, "bold"); ctx.textAlign = "center";
-    ctx.fillText(label, def.cx, def.cy + R + 24);
+    ctx.fillText(label, def.cx, labelY);
+    const labelW = ctx.measureText(label).width;
+    // 修炼按钮标出走火风险（走火率 >20% 标红）
+    // 放在标签右侧而非下方：按钮下方 392~422 只有一行空间，
+    // 再加一行会压到「灵气潮汐」那行（同基线，潮汐文案跨 386~575）。
+    if (def.action === "cultivate") {
+      const rate = (S.fire_rate || 0) * 100;
+      const risk = "走火 " + Math.round(rate) + "% · -" + (S.deviation_damage || 0);
+      const next = BTN_DEFS[BTN_DEFS.indexOf(def) + 1];
+      const limit = next ? next.cx - 34 : W - 20;   // 不越过下一个按钮的标签
+      const startX = Math.min(def.cx + labelW / 2 + 10, limit - 64);
+      ctx.font = F(12);
+      ctx.fillStyle = rate > 20 ? C.red : C.dim;
+      ctx.textAlign = "left";
+      ctx.fillText(fitText(risk, limit - startX, F(12)), startX, labelY);
+    }
   });
 }
 
@@ -345,7 +374,7 @@ function drawStatus() {
 function logColor(t) {
   if (/\[错误\]/.test(t)) return C.red;
   if (/潮汐|灵气/.test(t)) return C.jade;
-  if (/走火|失败|心魔|终结/.test(t)) return "#e08a8a";
+  if (/走火|失败|心魔|终结|身死|坐化|耗尽/.test(t)) return "#e08a8a";
   if (/突破|成功|获得|飞升/.test(t)) return C.gold;
   return "#cfe3da";
 }
@@ -489,30 +518,44 @@ function drawSettlement() {
   const px = W / 2 - 270, py = 118, pw = 540, ph = 404;
   ctx.fillStyle = "rgba(10,20,20,0.95)";
   roundRect(px, py, pw, ph, 14); ctx.fill();
-  ctx.strokeStyle = "rgba(127,209,168,0.6)"; ctx.lineWidth = 2;
+  ctx.strokeStyle = over.win ? "rgba(127,209,168,0.6)" : "rgba(224,138,138,0.55)";
+  ctx.lineWidth = 2;
   roundRect(px, py, pw, ph, 14); ctx.stroke();
   ctx.textAlign = "center";
-  ctx.fillStyle = C.gold;
+  ctx.fillStyle = over.win ? C.gold : "#e08a8a";
   ctx.font = F(44, "bold");
   ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 14;
-  ctx.fillText("羽 化 飞 升", W / 2, py + 72);
+  ctx.fillText(over.win ? "羽 化 飞 升" : "身 死 道 消", W / 2, py + 72);
   ctx.shadowBlur = 0;
-  const rows = [
+  const rows = over.win ? [
     ["最终境界", over.realm],
     ["修炼回合", over.rounds + ""],
     ["累计经验", stats.expTotal + ""],
     ["突破次数", stats.breakthroughs + ""],
     ["渡劫", "成功 " + stats.tribSuccess + " · 失败 " + stats.tribFail],
+  ] : [
+    ["最终境界", over.realm],
+    ["修行回合", over.rounds + ""],
+    ["最高连击", "×" + (over.maxCombo || 0)],
+    ["死因", DEATH_CAUSE_LABELS[over.deathCause] || DEATH_CAUSE_LABELS.deviation],
   ];
+  // 死亡时行数少、留一行空间给墓志铭
+  const rowStart = py + (over.win ? 140 : 124);
   ctx.font = F(20);
   rows.forEach((r2, i) => {
-    const y = py + 140 + i * 38;
-    ctx.fillStyle = C.dim; ctx.textAlign = "right";
+    const y = rowStart + i * 38;
+    ctx.fillStyle = C.dim; ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
     ctx.fillText(r2[0], W / 2 - 20, y);
-    ctx.fillStyle = C.cream; ctx.textAlign = "left";
+    ctx.fillStyle = over.win ? C.cream : "#e8c4c4"; ctx.textAlign = "left";
     ctx.fillText(fitText(r2[1], 220, F(20)), W / 2 + 20, y);
   });
-  drawBtn(AGAIN_BTN, "再来一局", hoverAgain);
+  if (!over.win && over.epitaph) {
+    ctx.fillStyle = C.gold;
+    ctx.font = "italic " + F(16);
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.fillText(over.epitaph, W / 2, py + 286);
+  }
+  drawBtn(AGAIN_BTN, over.win ? "再来一局" : "重新入道", hoverAgain);
   drawBtn(TITLE_BTN, "返回标题", hoverTitle);
 }
 
@@ -595,9 +638,15 @@ function doGameAction(action) {
       if (ef.tribulation) { if (ef.tribulation_success) stats.tribSuccess++; else stats.tribFail++; }
       if (S.is_game_over && screen === "play") {
         const c = S.character || {};
-        // 只保留飞升胜利结算：正常游玩无法死亡，死亡分支已移除
         if (c.realm === "飞升") {
           over = { win: true, realm: c.realm || "--", rounds: c.total_actions || 0 };
+          screen = "gameover";
+        } else if (!c.alive || c.deathCause) {
+          // 气血耗尽 / 寿元耗尽：寿终坐化时气血仍在，故一并看 deathCause
+          const cause = c.deathCause || "deviation";
+          over = { win: false, realm: c.realm || "--", rounds: c.total_actions || 0,
+                   deathCause: cause, maxCombo: c.max_combo || 0,
+                   epitaph: DEATH_EPITAPHS[cause] || DEATH_EPITAPHS.deviation || "" };
           screen = "gameover";
         }
       }
