@@ -142,15 +142,16 @@ function drawBackground() {
 
 function drawHUD() {
   const c = S.character || {};
-  ctx.fillStyle = C.dark;
-  ctx.fillRect(0, 0, W, L.hudH);
-  ctx.fillStyle = "rgba(127,209,168,0.25)";
-  ctx.fillRect(0, L.hudH - 1, W, 1);
+  // 顶栏深色底已去掉：文字直接落在水墨背景上，靠阴影保证可读
+  const shc = "rgba(0,0,0,0.55)", shb = 6;
+  ctx.shadowColor = shc; ctx.shadowBlur = shb;
 
-  // 头像圆
+  // 头像圆（图形不加阴影）
+  ctx.shadowBlur = 0;
   ctx.beginPath(); ctx.arc(40, 38, 22, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(127,209,168,0.15)"; ctx.fill();
   ctx.lineWidth = 2; ctx.strokeStyle = C.jade; ctx.stroke();
+  ctx.shadowBlur = shb;
   ctx.fillStyle = C.jade; ctx.font = F(22, "bold"); ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText("修", 40, 39);
 
@@ -173,11 +174,13 @@ function drawHUD() {
     const y = 42 + i * 12, bx = 108, bw = 150;
     ctx.fillStyle = C.dim; ctx.font = F(12); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     ctx.fillText(b[0], 72, y + 9);
+    ctx.shadowBlur = 0;
     ctx.fillStyle = "rgba(255,255,255,0.12)";
     roundRect(bx, y, bw, 9, 4); ctx.fill();
     const pct = b[4] !== undefined ? b[4] / 100 : (b[1] / Math.max(1, b[2]));
     ctx.fillStyle = b[3];
     if (pct > 0) { roundRect(bx, y, Math.max(9, bw * Math.min(1, pct)), 9, 4); ctx.fill(); }
+    ctx.shadowBlur = shb;
     ctx.fillStyle = C.dim; ctx.font = F(11); ctx.textAlign = "left";
     ctx.fillText((b[1] || 0) + "/" + b[2], bx + bw + 6, y + 9);
   });
@@ -197,13 +200,15 @@ function drawHUD() {
   ctx.fillText("第 " + (c.total_actions || 0) + " 回合", 836, 30);
   const r = L.restart;
   const hov = hoverRestart;
+  ctx.shadowBlur = 0;
   ctx.fillStyle = hov ? "rgba(232,197,107,0.25)" : "rgba(255,255,255,0.08)";
   roundRect(r.x, r.y, r.w, r.h, 14); ctx.fill();
   ctx.strokeStyle = "rgba(232,197,107,0.4)"; ctx.lineWidth = 1;
   roundRect(r.x, r.y, r.w, r.h, 14); ctx.stroke();
+  ctx.shadowBlur = shb;
   ctx.fillStyle = C.gold; ctx.font = F(13); ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText("↻ 重开", r.x + r.w / 2, r.y + r.h / 2 + 1);
-  ctx.textBaseline = "alphabetic";
+  ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
 }
 
 function drawBanner() {
@@ -261,6 +266,7 @@ function drawButtons(t) {
 function drawStatus() {
   const y = L.statusY;
   ctx.textAlign = "center"; ctx.font = F(14);
+  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 6;
   // 潮汐
   const tide = S.tide_effect;
   let tx = W / 2;
@@ -283,6 +289,7 @@ function drawStatus() {
   ctx.fillStyle = C.dim;
   const reco = "指引：" + (S.recommendation || "--");
   ctx.fillText(reco.length > 26 ? reco.slice(0, 26) + "…" : reco, W / 2 + 200, y + 28);
+  ctx.shadowBlur = 0;
 }
 
 function logColor(t) {
@@ -390,11 +397,13 @@ function drawStart(t) {
   ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 14;
   ctx.fillText("极 简 修 仙", W / 2 + 4, by + bh / 2 + 4);
   ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 6;
   ctx.fillStyle = C.cream; ctx.font = F(22);
   ctx.textAlign = "center";
   ctx.fillText("吐纳炼气 · 渡劫飞升", W / 2, 332);
   ctx.fillStyle = C.dim; ctx.font = F(16);
   ctx.fillText("点击开始，随机资质，入道修行", W / 2, 364);
+  ctx.shadowBlur = 0;
   const b = START_BTN, hov = hoverStart;
   const pulse = 0.5 + 0.5 * Math.sin(t / 600);
   ctx.fillStyle = hov ? "rgba(127,209,168,0.28)" : "rgba(20,35,35,0.85)";
