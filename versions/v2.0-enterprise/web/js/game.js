@@ -100,12 +100,13 @@ const DEBUG = readDebugParams();
 
 function newRun() {
   game.init("无名修士", "normal");
-  S = game.getState();
-  // 隐藏测试钩子：覆盖初始气血/寿元
-  if (S && S.character) {
-    if (DEBUG.hp !== undefined) S.character.hp = Math.min(S.character.maxHp, DEBUG.hp);
-    if (DEBUG.lifespan !== undefined) S.character.lifespan = DEBUG.lifespan;
+  // 隐藏测试钩子：直接覆盖游戏逻辑层的真实状态 game.ch，
+  // 不能改 getState() 返回的快照拷贝（它是每次现算的，第一个动作刷新 S 时会丢）
+  if (game.ch) {
+    if (DEBUG.hp !== undefined) game.ch.hp = Math.min(game.ch.maxHp, DEBUG.hp);
+    if (DEBUG.lifespan !== undefined) game.ch.lifespan = DEBUG.lifespan;
   }
+  S = game.getState();
   lastLogLen = S.log.length;
   resetStats();
   fx.toasts = []; fx.bigText = null; fx.deviation = 0; fx.rings = []; fx.expFloats = [];
