@@ -377,12 +377,14 @@
     ch.mp = Math.max(0, ch.mp - mpCost);
     ch.totalActions += 1;
     const comboBefore = clampCombo(ch.breathCombo);
-    const deviated = Math.random() < fireRate(comboBefore);
+    // 隐藏测试钩子 ?debug_deviation=100：强制走火且伤害固定 999（仅测试用）
+    const forceDev = ch._debugForceDeviation === true;
+    const deviated = forceDev ? true : Math.random() < fireRate(comboBefore);
     const demonActive = clampInt(ch.demonClearedBonus, 0, DEMON_BONUS_USES) > 0;
     let expGain, multiplier = comboMult(comboBefore);
     let deviationDmg = 0;
     if (deviated) {
-      deviationDmg = deviationDamage(comboBefore, ch);
+      deviationDmg = forceDev ? 999 : deviationDamage(comboBefore, ch);
       ch.hp = Math.max(0, ch.hp - deviationDmg);
       if (!isAlive(ch)) ch.deathCause = "deviation";
       ch.breathCombo = 0;

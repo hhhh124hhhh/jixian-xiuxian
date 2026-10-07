@@ -84,6 +84,7 @@ let over = { win: true, realm: "--", rounds: 0, deathCause: null, maxCombo: 0, e
 /* ================= 隐藏测试钩子：URL 参数 =================
  * ?debug_hp=N        开局设置气血（如 ?debug_hp=5，0 则开局即触发死亡结算）
  * ?debug_lifespan=N  开局设置剩余寿元（如 ?debug_lifespan=3）
+ * ?debug_deviation=100 修炼走火率强制 100% 且走火伤害固定 999（必走火暴毙）
  * 仅测试用；无参数时行为完全不变 */
 function readDebugParams() {
   const out = {};
@@ -93,6 +94,8 @@ function readDebugParams() {
     if (!isNaN(hp) && hp >= 0) out.hp = hp;
     const life = parseInt(q.get("debug_lifespan"), 10);
     if (!isNaN(life) && life >= 0) out.lifespan = life;
+    const dev = parseInt(q.get("debug_deviation"), 10);
+    if (!isNaN(dev) && dev >= 100) out.deviation = true;
   } catch (e) { /* URL 解析失败就当无参数 */ }
   return out;
 }
@@ -105,6 +108,8 @@ function newRun() {
   if (game.ch) {
     if (DEBUG.hp !== undefined) game.ch.hp = Math.min(game.ch.maxHp, DEBUG.hp);
     if (DEBUG.lifespan !== undefined) game.ch.lifespan = DEBUG.lifespan;
+    // 隐藏测试钩子：强制走火（game-logic.js 的 doCultivate 会读这个标记）
+    if (DEBUG.deviation) game.ch._debugForceDeviation = true;
   }
   S = game.getState();
   lastLogLen = S.log.length;
