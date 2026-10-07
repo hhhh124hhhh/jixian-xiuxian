@@ -80,9 +80,32 @@ let screen = "start";
 const stats = { expTotal: 0, breakthroughs: 0, tribSuccess: 0, tribFail: 0 };
 function resetStats() { stats.expTotal = 0; stats.breakthroughs = 0; stats.tribSuccess = 0; stats.tribFail = 0; }
 let over = { win: true, realm: "--", rounds: 0, deathCause: null, maxCombo: 0, epitaph: "" };
+
+/* ================= 隐藏测试钩子：URL 参数 =================
+ * ?debug_hp=N        开局设置气血（如 ?debug_hp=5，0 则开局即触发死亡结算）
+ * ?debug_lifespan=N  开局设置剩余寿元（如 ?debug_lifespan=3）
+ * 仅测试用；无参数时行为完全不变 */
+function readDebugParams() {
+  const out = {};
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const hp = parseInt(q.get("debug_hp"), 10);
+    if (!isNaN(hp) && hp >= 0) out.hp = hp;
+    const life = parseInt(q.get("debug_lifespan"), 10);
+    if (!isNaN(life) && life >= 0) out.lifespan = life;
+  } catch (e) { /* URL 解析失败就当无参数 */ }
+  return out;
+}
+const DEBUG = readDebugParams();
+
 function newRun() {
   game.init("无名修士", "normal");
   S = game.getState();
+  // 隐藏测试钩子：覆盖初始气血/寿元
+  if (S && S.character) {
+    if (DEBUG.hp !== undefined) S.character.hp = Math.min(S.character.maxHp, DEBUG.hp);
+    if (DEBUG.lifespan !== undefined) S.character.lifespan = DEBUG.lifespan;
+  }
   lastLogLen = S.log.length;
   resetStats();
   fx.toasts = []; fx.bigText = null; fx.deviation = 0; fx.rings = []; fx.expFloats = [];
