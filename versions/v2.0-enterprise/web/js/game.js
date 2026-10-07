@@ -96,6 +96,55 @@ const fx = {
 function toast(text, type) { fx.toasts.push({ text, type: type || "", start: now() }); }
 function bigText(text, color, dur) { fx.bigText = { text, color, start: now(), dur: dur || 2000 }; }
 
+
+/* ================= 音效（Web Audio 程序合成，无外部音频文件） =================
+ * AudioContext 必须在用户手势中创建：onTap 里调 initAudio() */
+let AC = null;
+function initAudio() {
+  if (AC) { if (AC.state === "suspended") AC.resume(); return; }
+  try { AC = new (window.AudioContext || window.webkitAudioContext)(); }
+  catch (e) { console.warn("[sfx] AudioContext 不可用", e); }
+}
+/* 五声音阶频率（宫商角徵羽），国风味道 */
+const PENTA = { C4:261.63, D4:293.66, E4:329.63, G4:392.00, A4:440.00,
+                C5:523.25, D5:587.33, E5:659.25, G5:783.99, A5:880.00 };
+function tone(freq, t0, dur, type, vol, slideTo) {
+  if (!AC) return;
+  try {
+    const t = AC.currentTime + t0;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.16, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  } catch (e) { /* 忽略单次合成失败 */ }
+}
+const SFX = {
+  click()       { tone(760, 0, 0.07, "square", 0.07); },
+  meditate()    { tone(PENTA.E4, 0, 0.5, "sine", 0.13, PENTA.C4);
+                  tone(PENTA.G4, 0.08, 0.5, "sine", 0.09, PENTA.E4); },
+  pill()        { tone(PENTA.G4, 0, 0.12, "triangle", 0.15);
+                  tone(PENTA.C5, 0.1, 0.22, "triangle", 0.15); },
+  cultivate()   { tone(PENTA.C4, 0, 0.35, "sine", 0.13, PENTA.G4); },
+  wait()        { tone(330, 0, 0.1, "sine", 0.07); },
+  breakthrough(){ [PENTA.C4,PENTA.D4,PENTA.E4,PENTA.G4,PENTA.A4,PENTA.C5]
+                    .forEach((f,i) => tone(f, i*0.09, 0.3, "triangle", 0.15)); },
+  tribWin()     { [PENTA.G4,PENTA.C5,PENTA.D5,PENTA.E5,PENTA.G5]
+                    .forEach((f,i) => tone(f, i*0.11, 0.34, "triangle", 0.15)); },
+  tribFail()    { tone(220, 0, 0.5, "sawtooth", 0.09, 110); },
+  deviation()   { tone(196, 0, 0.4, "sawtooth", 0.11, 185);
+                  tone(208, 0.05, 0.4, "sawtooth", 0.09, 220); },
+  warn()        { tone(440, 0, 0.12, "square", 0.05); },
+  good()        { tone(PENTA.C5, 0, 0.15, "triangle", 0.12);
+                  tone(PENTA.E5, 0.09, 0.2, "triangle", 0.12); },
+};
+const ACTION_SFX = { meditate:"meditate", consume_pill:"pill", cultivate:"cultivate",
+                     wait:"wait", restart:"click" };
+
 /* ================= canvas ================= */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -308,8 +357,12 @@ function drawLog() {
   ctx.fillText("— 修仙日志 —", lg.x + 28, lg.y - 8);
   const logs = S.log || [];
   const lineH = 21, maxLines = 5, padX = 30, topY = lg.y + 34;
+  // 文字安全区底：半透明深色垫在文字行下面，防底图山水图案压住日志字
+  ctx.fillStyle = "rgba(4,10,10,0.62)";
+  roundRect(lg.x + 14, topY - 20, lg.w - 28, maxLines * lineH + 10, 8); ctx.fill();
   const start = Math.max(0, logs.length - maxLines);
   ctx.font = F(14);
+  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 4;
   for (let i = 0; i < Math.min(maxLines, logs.length); i++) {
     const t = logs[start + i];
     ctx.fillStyle = logColor(t);
@@ -318,6 +371,7 @@ function drawLog() {
     if (txt !== t) txt += "…";
     ctx.fillText(txt, lg.x + padX, topY + i * lineH);
   }
+  ctx.shadowBlur = 0;
 }
 
 /* ---- 特效绘制 ---- */
@@ -506,24 +560,30 @@ function doGameAction(action) {
     const r = game.doAction(action);
     if (!r.success) {
       toast(r.message, "warn");
+      SFX.warn();
     } else {
       fx.press = { action, start: now() };
+      const sfx = ACTION_SFX[action];
+      if (sfx && SFX[sfx]) SFX[sfx]();
     }
     const ef = r.effects || {};
     if (ef.level_up) {
+      SFX.breakthrough();
       fx.rings.push({ cx: W / 2, cy: L.btnY, start: now() });
       bigText("突破 · " + (ef.new_level || ""), C.jade, 2000);
       toast("突破至 " + (ef.new_level || "") + "！", "good");
     }
     if (ef.fire_deviation) {
+      SFX.deviation();
       fx.deviation = now();
       bigText("走火入魔", C.red, 2200);
       toast("走火入魔！气息紊乱 3 回合", "warn");
     }
     if (ef.exp_gain > 0) fx.expFloats.push({ amount: ef.exp_gain, x: W / 2, y: L.btnY - 70, start: now() });
-    if (ef.demon_cleared) { bigText("破心魔", C.jade, 1800); toast("心魔已破！修炼加速", "good"); }
+    if (ef.demon_cleared) { SFX.good(); bigText("破心魔", C.jade, 1800); toast("心魔已破！修炼加速", "good"); }
     if (ef.tribulation) {
       const ok = !!ef.tribulation_success;
+      if (ok) SFX.tribWin(); else SFX.tribFail();
       bigText(ok ? "渡劫成功" : "渡劫失败", ok ? C.gold : C.red, 2200);
       toast(ok ? "渡劫成功！配额已刷新" : "渡劫失败……", ok ? "good" : "warn");
     }
@@ -547,15 +607,16 @@ function doGameAction(action) {
 /* pointerdown 统一处理鼠标/触摸/手写笔：手机上无 click 延迟，桌面端行为不变。
  * toGame() 已用 getBoundingClientRect 换算，CSS 缩放后坐标依然准确。 */
 function onTap(e) {
+  initAudio();   // 首次用户点击时初始化 AudioContext（手机自动播放策略要求）
   if (e.pointerType === "touch") { hoverBtn = null; hoverRestart = false; }
   const p = toGame(e);
   if (screen === "start") {
-    if (inRect(p, START_BTN, 14)) newRun();
+    if (inRect(p, START_BTN, 14)) { SFX.click(); newRun(); }
     return;
   }
   if (screen === "gameover") {
-    if (inRect(p, AGAIN_BTN, 14)) newRun();
-    else if (inRect(p, TITLE_BTN, 14)) { screen = "start"; }
+    if (inRect(p, AGAIN_BTN, 14)) { SFX.click(); newRun(); }
+    else if (inRect(p, TITLE_BTN, 14)) { SFX.click(); screen = "start"; }
     return;
   }
   const r = L.restart;
