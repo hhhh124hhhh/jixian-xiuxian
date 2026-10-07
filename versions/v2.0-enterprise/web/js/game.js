@@ -72,7 +72,7 @@ let lastLogLen = 0;
 let screen = "start";
 const stats = { expTotal: 0, breakthroughs: 0, tribSuccess: 0, tribFail: 0 };
 function resetStats() { stats.expTotal = 0; stats.breakthroughs = 0; stats.tribSuccess = 0; stats.tribFail = 0; }
-let over = { win: false, realm: "--", rounds: 0 };   // 结算页快照
+let over = { win: true, realm: "--", rounds: 0 };   // 结算页快照（仅飞升胜利）
 function newRun() {
   game.init("无名修士", "normal");
   S = game.getState();
@@ -428,10 +428,10 @@ function drawSettlement() {
   ctx.strokeStyle = "rgba(127,209,168,0.6)"; ctx.lineWidth = 2;
   roundRect(px, py, pw, ph, 14); ctx.stroke();
   ctx.textAlign = "center";
-  ctx.fillStyle = over.win ? C.gold : "#e08a8a";
+  ctx.fillStyle = C.gold;
   ctx.font = F(44, "bold");
   ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 14;
-  ctx.fillText(over.win ? "羽 化 飞 升" : "仙 途 终 结", W / 2, py + 72);
+  ctx.fillText("羽 化 飞 升", W / 2, py + 72);
   ctx.shadowBlur = 0;
   const rows = [
     ["最终境界", over.realm],
@@ -524,8 +524,11 @@ function doGameAction(action) {
       if (ef.tribulation) { if (ef.tribulation_success) stats.tribSuccess++; else stats.tribFail++; }
       if (S.is_game_over && screen === "play") {
         const c = S.character || {};
-        over = { win: c.realm === "飞升", realm: c.realm || "--", rounds: c.total_actions || 0 };
-        screen = "gameover";
+        // 只保留飞升胜利结算：正常游玩无法死亡，死亡分支已移除
+        if (c.realm === "飞升") {
+          over = { win: true, realm: c.realm || "--", rounds: c.total_actions || 0 };
+          screen = "gameover";
+        }
       }
     }
   } catch (e) { console.error("[canvas] 动作失败", e); }
