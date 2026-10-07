@@ -124,8 +124,9 @@ function fitText(text, maxW, font) {
   while (t.length > 1 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
   return t + "…";
 }
-function inRect(p, r) {
-  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+function inRect(p, r, pad) {
+  pad = pad || 0;   // pad>0 时扩大热区（移动端手指点按更友好），不影响绘制
+  return p.x >= r.x - pad && p.x <= r.x + r.w + pad && p.y >= r.y - pad && p.y <= r.y + r.h + pad;
 }
 
 /* ================= 绘制 ================= */
@@ -493,9 +494,10 @@ function toGame(e) {
   };
 }
 function hitButton(p) {
+  const R = L.btnR + 12;   // 命中半径比绘制半径大一圈，手指好点
   for (const def of BTN_DEFS) {
     const dx = p.x - def.cx, dy = p.y - def.cy;
-    if (dx * dx + dy * dy <= L.btnR * L.btnR) return def.action;
+    if (dx * dx + dy * dy <= R * R) return def.action;
   }
   return null;
 }
@@ -542,19 +544,22 @@ function doGameAction(action) {
     }
   } catch (e) { console.error("[canvas] 动作失败", e); }
 }
-canvas.addEventListener("click", e => {
+/* pointerdown 统一处理鼠标/触摸/手写笔：手机上无 click 延迟，桌面端行为不变。
+ * toGame() 已用 getBoundingClientRect 换算，CSS 缩放后坐标依然准确。 */
+function onTap(e) {
+  if (e.pointerType === "touch") { hoverBtn = null; hoverRestart = false; }
   const p = toGame(e);
   if (screen === "start") {
-    if (inRect(p, START_BTN)) newRun();
+    if (inRect(p, START_BTN, 14)) newRun();
     return;
   }
   if (screen === "gameover") {
-    if (inRect(p, AGAIN_BTN)) newRun();
-    else if (inRect(p, TITLE_BTN)) { screen = "start"; }
+    if (inRect(p, AGAIN_BTN, 14)) newRun();
+    else if (inRect(p, TITLE_BTN, 14)) { screen = "start"; }
     return;
   }
   const r = L.restart;
-  if (inRect(p, r)) {
+  if (inRect(p, r, 10)) {
     doGameAction("restart");
     return;
   }
@@ -563,7 +568,8 @@ canvas.addEventListener("click", e => {
   const b = (S.buttons || []).find(x => x.action === a);
   if (!b || !b.enabled || S.is_game_over) return;
   doGameAction(a);
-});
+}
+canvas.addEventListener("pointerdown", onTap);
 canvas.addEventListener("mousemove", e => {
   const p = toGame(e);
   hoverStart = hoverAgain = hoverTitle = false;
@@ -582,10 +588,7 @@ canvas.addEventListener("mousemove", e => {
   }
   canvas.style.cursor = (hoverStart || hoverAgain || hoverTitle || hoverRestart || hoverBtn) ? "pointer" : "default";
 });
-canvas.addEventListener("touchstart", e => {
-  // 移动端：touch 等同 click（click 事件本身也会触发，这里只做 hover 清理）
-  hoverBtn = null; hoverRestart = false;
-}, { passive: true });
+canvas.addEventListener("contextmenu", e => e.preventDefault());  // 移动端禁长按菜单
 
 /* ================= 启动 ================= */
 loadAssets()
