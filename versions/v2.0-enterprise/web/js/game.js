@@ -65,9 +65,22 @@ function loadAssets() {
 
 /* ================= 游戏逻辑 ================= */
 const game = GameLogic.createGame();
-game.init("无名修士", "normal");
-let S = game.getState();          // 缓存的最新状态
-let lastLogLen = S.log.length;
+let S = game.getState();          // 缓存的最新状态（开始页时角色为空）
+let lastLogLen = 0;
+
+/* ================= 界面状态机：start | play | gameover ================= */
+let screen = "start";
+const stats = { expTotal: 0, breakthroughs: 0, tribSuccess: 0, tribFail: 0 };
+function resetStats() { stats.expTotal = 0; stats.breakthroughs = 0; stats.tribSuccess = 0; stats.tribFail = 0; }
+let over = { win: false, realm: "--", rounds: 0 };   // 结算页快照
+function newRun() {
+  game.init("无名修士", "normal");
+  S = game.getState();
+  lastLogLen = S.log.length;
+  resetStats();
+  fx.toasts = []; fx.bigText = null; fx.deviation = 0; fx.rings = []; fx.expFloats = [];
+  screen = "play";
+}
 
 /* ================= 特效 ================= */
 const now = () => performance.now();
@@ -102,6 +115,19 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
+/* 文字过长时截断加省略号，保证不超出框 */
+function fitText(text, maxW, font) {
+  text = String(text);
+  ctx.font = font;
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+  return t + "…";
+}
+function inRect(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+}
+
 /* ================= 绘制 ================= */
 function drawBackground() {
   if (ASSETS.bg) ctx.drawImage(ASSETS.bg, 0, 0, W, H);
@@ -128,13 +154,14 @@ function drawHUD() {
   ctx.fillStyle = C.jade; ctx.font = F(22, "bold"); ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText("修", 40, 39);
 
-  // 名字·境界
-  ctx.textAlign = "left";
+  // 名字·境界（名字过长截断，不超出框）
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   ctx.fillStyle = C.cream; ctx.font = F(20, "bold");
-  ctx.fillText(c.name || "无名修士", 72, 26);
-  const nm = ctx.measureText(c.name || "无名修士").width;
+  const nameTxt = fitText(c.name || "无名修士", 150, F(20, "bold"));
+  ctx.fillText(nameTxt, 72, 26);
+  const nm = ctx.measureText(nameTxt).width;
   ctx.fillStyle = C.jade; ctx.font = F(16);
-  ctx.fillText("· " + (c.realm || "炼气期"), 72 + nm + 6, 26);
+  ctx.fillText("· " + fitText(c.realm || "炼气期", 90, F(16)), 72 + nm + 6, 26);
 
   // 三条状态条
   const bars = [
@@ -155,14 +182,14 @@ function drawHUD() {
     ctx.fillText((b[1] || 0) + "/" + b[2], bx + bw + 6, y + 9);
   });
 
-  // 中部：丹药 / 连击 / 配额
-  ctx.fillStyle = C.gold; ctx.font = F(15, "bold"); ctx.textAlign = "left";
-  ctx.fillText("丹药 " + (c.pills || 0), 300, 30);
+  // 中部：丹药 / 连击 / 配额（全部限宽，不压边框）
+  ctx.fillStyle = C.gold; ctx.font = F(15, "bold"); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  ctx.fillText(fitText("丹药 " + (c.pills || 0), 130, F(15, "bold")), 300, 30);
   ctx.fillStyle = (S.fire_deviation_turn > 0) ? C.red : C.cream;
   ctx.font = F(14);
-  ctx.fillText(S.breath_combo_status || S.demon_cleared_status || "--", 300, 54);
+  ctx.fillText(fitText(S.breath_combo_status || S.demon_cleared_status || "--", 150, F(14)), 300, 54);
   ctx.fillStyle = C.dim; ctx.font = F(13);
-  ctx.fillText((S.quota && S.quota.text) || "", 470, 30);
+  ctx.fillText(fitText((S.quota && S.quota.text) || "", 170, F(13)), 470, 30);
   ctx.fillText("资质 " + (c.talent || "--"), 470, 54);
 
   // 右上：回合 + 重开
@@ -353,26 +380,89 @@ function drawEffects(t) {
   });
 }
 
-function drawGameOver() {
-  if (!S.is_game_over) return;
-  ctx.fillStyle = "rgba(4,8,8,0.62)";
-  ctx.fillRect(0, 0, W, H);
-  const c = S.character || {};
-  const win = (c.realm === "飞升");
-  ctx.fillStyle = win ? C.gold : C.cream;
-  ctx.font = F(48, "bold"); ctx.textAlign = "center";
-  ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 16;
-  ctx.fillText(win ? "羽 化 飞 升" : "仙 途 终 结", W / 2, H / 2 - 10);
-  ctx.shadowBlur = 0;
+/* ================= 开始页 ================= */
+const START_BTN = { x: W / 2 - 110, y: 408, w: 220, h: 58 };
+function drawStart(t) {
+  const bw = 460, bh = 154, bx = W / 2 - bw / 2, by = 118;
+  if (ASSETS.banner) ctx.drawImage(ASSETS.banner, bx, by, bw, bh);
+  ctx.fillStyle = C.gold; ctx.font = F(64, "bold");
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 14;
+  ctx.fillText("极 简 修 仙", W / 2 + 4, by + bh / 2 + 4);
+  ctx.shadowBlur = 0; ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = C.cream; ctx.font = F(22);
+  ctx.textAlign = "center";
+  ctx.fillText("吐纳炼气 · 渡劫飞升", W / 2, 332);
   ctx.fillStyle = C.dim; ctx.font = F(16);
-  ctx.fillText("点击右上角 ↻ 重开 再入轮回", W / 2, H / 2 + 40);
+  ctx.fillText("点击开始，随机资质，入道修行", W / 2, 364);
+  const b = START_BTN, hov = hoverStart;
+  const pulse = 0.5 + 0.5 * Math.sin(t / 600);
+  ctx.fillStyle = hov ? "rgba(127,209,168,0.28)" : "rgba(20,35,35,0.85)";
+  roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(127,209,168," + (hov ? 1 : (0.6 + 0.3 * pulse)).toFixed(2) + ")";
+  ctx.lineWidth = 2; roundRect(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+  ctx.fillStyle = C.gold; ctx.font = F(26, "bold"); ctx.textBaseline = "middle";
+  ctx.fillText("开 始 游 戏", W / 2, b.y + b.h / 2 + 1);
+  ctx.textBaseline = "alphabetic";
+}
+
+/* ================= 结算页 ================= */
+const AGAIN_BTN = { x: W / 2 - 240, y: 436, w: 210, h: 54 };
+const TITLE_BTN = { x: W / 2 + 30, y: 436, w: 210, h: 54 };
+function drawBtn(r, label, hov) {
+  ctx.fillStyle = hov ? "rgba(127,209,168,0.25)" : "rgba(20,35,35,0.9)";
+  roundRect(r.x, r.y, r.w, r.h, 10); ctx.fill();
+  ctx.strokeStyle = hov ? C.jade : "rgba(127,209,168,0.55)";
+  ctx.lineWidth = 2; roundRect(r.x, r.y, r.w, r.h, 10); ctx.stroke();
+  ctx.fillStyle = C.cream; ctx.font = F(20, "bold");
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2 + 1);
+  ctx.textBaseline = "alphabetic";
+}
+function drawSettlement() {
+  ctx.fillStyle = "rgba(4,8,8,0.66)";
+  ctx.fillRect(0, 0, W, H);
+  const px = W / 2 - 270, py = 118, pw = 540, ph = 404;
+  ctx.fillStyle = "rgba(10,20,20,0.95)";
+  roundRect(px, py, pw, ph, 14); ctx.fill();
+  ctx.strokeStyle = "rgba(127,209,168,0.6)"; ctx.lineWidth = 2;
+  roundRect(px, py, pw, ph, 14); ctx.stroke();
+  ctx.textAlign = "center";
+  ctx.fillStyle = over.win ? C.gold : "#e08a8a";
+  ctx.font = F(44, "bold");
+  ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 14;
+  ctx.fillText(over.win ? "羽 化 飞 升" : "仙 途 终 结", W / 2, py + 72);
+  ctx.shadowBlur = 0;
+  const rows = [
+    ["最终境界", over.realm],
+    ["修炼回合", over.rounds + ""],
+    ["累计经验", stats.expTotal + ""],
+    ["突破次数", stats.breakthroughs + ""],
+    ["渡劫", "成功 " + stats.tribSuccess + " · 失败 " + stats.tribFail],
+  ];
+  ctx.font = F(20);
+  rows.forEach((r2, i) => {
+    const y = py + 140 + i * 38;
+    ctx.fillStyle = C.dim; ctx.textAlign = "right";
+    ctx.fillText(r2[0], W / 2 - 20, y);
+    ctx.fillStyle = C.cream; ctx.textAlign = "left";
+    ctx.fillText(fitText(r2[1], 220, F(20)), W / 2 + 20, y);
+  });
+  drawBtn(AGAIN_BTN, "再来一局", hoverAgain);
+  drawBtn(TITLE_BTN, "返回标题", hoverTitle);
 }
 
 /* ================= 主循环 ================= */
 let tideActive = false, hoverBtn = null, hoverRestart = false;
+let hoverStart = false, hoverAgain = false, hoverTitle = false;
 
 function render(t) {
   ctx.clearRect(0, 0, W, H);
+  if (screen === "start") {
+    drawBackground();
+    drawStart(t || 0);
+    return;
+  }
   tideActive = !!(S.tide_effect && S.tide_effect.tone);
   drawBackground();
   drawHUD();
@@ -381,7 +471,7 @@ function render(t) {
   drawStatus();
   drawLog();
   drawEffects(t);
-  drawGameOver();
+  if (screen === "gameover") drawSettlement();
 }
 function loop(t) { render(t || 0); requestAnimationFrame(loop); }
 
@@ -426,15 +516,33 @@ function doGameAction(action) {
       bigText(ok ? "渡劫成功" : "渡劫失败", ok ? C.gold : C.red, 2200);
       toast(ok ? "渡劫成功！配额已刷新" : "渡劫失败……", ok ? "good" : "warn");
     }
-    if (ef.restart) { fx.toasts = []; fx.bigText = null; fx.deviation = 0; lastLogLen = 0; }
+    if (ef.restart) { fx.toasts = []; fx.bigText = null; fx.deviation = 0; lastLogLen = 0; resetStats(); }
     S = game.getState();
-    if (S.is_game_over && !ef.restart) bigText((S.character.realm === "飞升") ? "羽 化 飞 升" : "仙 途 终 结", C.gold, 3000);
+    if (!ef.restart) {
+      if (ef.exp_gain > 0) stats.expTotal += ef.exp_gain;
+      if (ef.level_up) stats.breakthroughs++;
+      if (ef.tribulation) { if (ef.tribulation_success) stats.tribSuccess++; else stats.tribFail++; }
+      if (S.is_game_over && screen === "play") {
+        const c = S.character || {};
+        over = { win: c.realm === "飞升", realm: c.realm || "--", rounds: c.total_actions || 0 };
+        screen = "gameover";
+      }
+    }
   } catch (e) { console.error("[canvas] 动作失败", e); }
 }
 canvas.addEventListener("click", e => {
   const p = toGame(e);
+  if (screen === "start") {
+    if (inRect(p, START_BTN)) newRun();
+    return;
+  }
+  if (screen === "gameover") {
+    if (inRect(p, AGAIN_BTN)) newRun();
+    else if (inRect(p, TITLE_BTN)) { screen = "start"; }
+    return;
+  }
   const r = L.restart;
-  if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
+  if (inRect(p, r)) {
     doGameAction("restart");
     return;
   }
@@ -446,12 +554,21 @@ canvas.addEventListener("click", e => {
 });
 canvas.addEventListener("mousemove", e => {
   const p = toGame(e);
-  const r = L.restart;
-  hoverRestart = p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
-  const a = hitButton(p);
-  const b = a && (S.buttons || []).find(x => x.action === a);
-  hoverBtn = (b && b.enabled && !S.is_game_over) ? a : null;
-  canvas.style.cursor = (hoverRestart || hoverBtn) ? "pointer" : "default";
+  hoverStart = hoverAgain = hoverTitle = false;
+  hoverBtn = null; hoverRestart = false;
+  if (screen === "start") {
+    hoverStart = inRect(p, START_BTN);
+  } else if (screen === "gameover") {
+    hoverAgain = inRect(p, AGAIN_BTN);
+    hoverTitle = inRect(p, TITLE_BTN);
+  } else {
+    const r = L.restart;
+    hoverRestart = inRect(p, r);
+    const a = hitButton(p);
+    const b = a && (S.buttons || []).find(x => x.action === a);
+    hoverBtn = (b && b.enabled && !S.is_game_over) ? a : null;
+  }
+  canvas.style.cursor = (hoverStart || hoverAgain || hoverTitle || hoverRestart || hoverBtn) ? "pointer" : "default";
 });
 canvas.addEventListener("touchstart", e => {
   // 移动端：touch 等同 click（click 事件本身也会触发，这里只做 hover 清理）
