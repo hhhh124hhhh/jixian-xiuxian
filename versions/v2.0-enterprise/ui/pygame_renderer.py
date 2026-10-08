@@ -854,7 +854,8 @@ class PygameGameInterface(GameInterface):
 
             label_cfg = line_cfg.get("label")
             if label_cfg:
-                label_surface = small_font.render(label_cfg, True, HUD_TEXT_SECONDARY)
+                shown_label = ("寿元" if bar_key == "hp" else "配额") if game_state.get("risk_mode") else label_cfg
+                label_surface = small_font.render(shown_label, True, HUD_TEXT_SECONDARY)
                 self.screen.blit(label_surface, label_surface.get_rect(
                     midleft=(line_cfg["pos"][0], bar_rect.centery)
                 ))
@@ -1040,7 +1041,7 @@ class PygameGameInterface(GameInterface):
                                           rect.y + (rect.height - size) // 2))
 
         # 渲染推荐信息
-        recommendation = self.renderer.format_status_recommendation(character)
+        recommendation = (game_state.get("recommendation") if game_state.get("risk_mode") else self.renderer.format_status_recommendation(character))
         status_config = self.layout.STATUS_CONFIG
 
         status_text = status_config["recommendation_template"].format(
