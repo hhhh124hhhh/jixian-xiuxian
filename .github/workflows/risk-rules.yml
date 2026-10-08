@@ -1,0 +1,25 @@
+name: Risk cultivation rules
+on:
+  push:
+    paths:
+      - 'versions/v2.0-enterprise/core/risk_*.py'
+      - 'versions/v2.0-enterprise/tests/unit/test_risk_run.py'
+      - '.github/workflows/risk-rules.yml'
+  pull_request:
+    paths:
+      - 'versions/v2.0-enterprise/core/risk_*.py'
+      - 'versions/v2.0-enterprise/tests/unit/test_risk_run.py'
+      - '.github/workflows/risk-rules.yml'
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: versions/v2.0-enterprise
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run deterministic risk rules tests
+        run: python -m unittest discover -s tests/unit -p test_risk_run.py -v
