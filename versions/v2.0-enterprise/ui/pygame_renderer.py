@@ -1047,6 +1047,8 @@ class PygameGameInterface(GameInterface):
         status_text = status_config["recommendation_template"].format(
             recommendation=recommendation
         )
+        if game_state.get("risk_mode"):
+            status_text = self._fit_text(status_text, font, self.layout.STATUS_RECT.width - 115)
         status_surface = font.render(status_text, True, theme.TEXT_PRIMARY)
         rec_pos = (
             self.layout.STATUS_RECT.left + self.layout.LOG_TEXT_PADDING_X,
