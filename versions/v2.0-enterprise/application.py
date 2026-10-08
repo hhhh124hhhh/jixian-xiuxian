@@ -4,10 +4,12 @@
 
 import sys
 import time
+import os
 from typing import Optional, Dict, Any
 from ui.interface import GameInterface, UIEvent
 from ui.pygame_renderer import PygameGameInterface
 from core.game_core import GameCore
+from core.risk_game_core import RiskGameCore
 from core.event_handler import event_handler, EventType, GameEventLogger, AchievementTracker, GameEvent
 from ui.layouts import default_layout
 from ui.themes import theme_manager
@@ -19,7 +21,7 @@ class GameApplication:
 
     def __init__(self, ui_interface: GameInterface = None):
         self.ui = ui_interface or PygameGameInterface()
-        self.game_core = GameCore()
+        self.game_core = RiskGameCore() if os.environ.get("JIXIAN_MODE") == "risk" else GameCore()
 
         # 应用程序状态
         self.running = False
@@ -367,8 +369,9 @@ class GameApplication:
 
         # 显示结束消息
         character = self.game_core.character
-        if character and character.experience.current_realm.value == "飞升":
-            message = f"恭喜飞升！\n总经验: {final_stats.get('total_experience', 0)}\n总行动: {final_stats.get('total_actions', 0)}"
+        victory = bool(final_stats.get("victory")) or bool(character and character.experience.current_realm.value == "飞升")
+        if victory:
+            message = f"修行圆满！\n境界: {final_stats.get('current_realm', '未知')}\n总修为: {final_stats.get('total_experience', 0)}"
             self.ui.show_message("游戏胜利", message, "success")
         else:
             message = f"修炼失败...\n最终境界: {final_stats.get('current_realm', '未知')}\n总经验: {final_stats.get('total_experience', 0)}"
@@ -380,7 +383,7 @@ class GameApplication:
             {
                 "final_stats": final_stats,
                 "session_stats": self.session_statistics,
-                "victory": character and character.experience.current_realm.value == "飞升"
+                "victory": victory
             }
         )
 
