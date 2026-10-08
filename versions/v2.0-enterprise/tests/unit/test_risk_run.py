@@ -30,8 +30,9 @@ class RiskRunTests(unittest.TestCase):
         self.assertEqual(run.s.exp, 40)
         self.assertEqual(run.s.quota, 9)
         for _ in range(3):
-            run.act("breathe")
-            run.act("bank")
+            for _ in range(2):
+                self.assertTrue(run.act("breathe")["success"])
+            self.assertTrue(run.act("bank")["success"])
         self.assertEqual(run.s.quota, 0)
         self.assertEqual(run.s.exp, 160)
         self.assertFalse(run.can("breathe"))
