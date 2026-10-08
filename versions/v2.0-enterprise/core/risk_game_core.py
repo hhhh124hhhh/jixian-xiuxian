@@ -37,6 +37,7 @@ class RiskGameCore:
         self.character = CharacterStats(character_name or "无名修士")
         self.game_log = GameLog()
         self.game_log.add_entry("【风险修炼】收功消耗 1 次配额；灵潮提前揭示，突破前请权衡炼丹与寿元。")
+        self.game_log.add_entry("灵潮预告：" + TIDES[self.run.s.tide][0] + " · " + TIDES[self.run.s.tide][1])
         self.is_game_over = False
         self._update_game_state()
         return True
@@ -59,6 +60,8 @@ class RiskGameCore:
         result = self.run.act(action)
         if result["success"]:
             self.game_log.add_entry(result["message"])
+            if action in ("bank", "demon_break", "demon_calm", "demon_convert") and self.run.s.phase == "playing":
+                self.game_log.add_entry("下一轮灵潮：" + TIDES[self.run.s.tide][0] + " · " + TIDES[self.run.s.tide][1])
         self._update_game_state()
         return result
 
