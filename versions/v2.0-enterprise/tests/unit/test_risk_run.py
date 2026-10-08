@@ -1,6 +1,7 @@
 """风险修炼数值与边界测试。运行：python -m unittest discover -s tests/unit -p test_risk_run.py"""
 import unittest
 from core.risk_run import RiskRun, FIRE_RATES, PILL_QUOTA, CULTIVATION_QUOTA, LIFESPAN
+from core.risk_game_core import RiskGameCore
 
 
 class ControlledRandom:
@@ -116,6 +117,22 @@ class RiskRunTests(unittest.TestCase):
             run.act("brew")
         self.assertEqual((run.s.pills, run.s.made), (6, 6))
         self.assertFalse(run.can("brew"))
+
+    def test_existing_pygame_interface_adapter_smoke(self):
+        core = RiskGameCore(rng=ControlledRandom())
+        self.assertTrue(core.initialize_game("试炼者"))
+        initial = core.get_game_state()
+        self.assertTrue(initial["risk_mode"])
+        self.assertEqual(initial["action_labels"]["meditate"], "吐纳")
+        self.assertEqual(len(initial["actions"]), 4)
+        self.assertEqual(initial["character"].health.current_hp, 22)
+        self.assertTrue(core.execute_action("meditate")["success"])
+        self.assertTrue(core.execute_action("consume_pill")["success"])
+        current = core.get_game_state()
+        self.assertEqual(current["character"].total_actions, 2)
+        self.assertEqual(current["quota_status"]["cultivate_left"], 10)
+        self.assertEqual(current["character"].experience.current_level_experience, 10)
+
 
 
 if __name__ == "__main__":
