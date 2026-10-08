@@ -21,7 +21,7 @@ class GameApplication:
 
     def __init__(self, ui_interface: GameInterface = None):
         self.ui = ui_interface or PygameGameInterface()
-        self.game_core = RiskGameCore() if os.environ.get("JIXIAN_MODE") == "risk" else GameCore()
+        self.game_core = RiskGameCore() if (os.environ.get("JIXIAN_MODE") == "risk" or "--risk" in sys.argv) else GameCore()
 
         # 应用程序状态
         self.running = False
